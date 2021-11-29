@@ -1287,6 +1287,7 @@ static __always_inline __bpfcall unsigned int bpf_dispatcher_nop_func(
 	const struct bpf_insn *insnsi,
 	bpf_func_t bpf_func)
 {
+    //    printk(KERN_WARNING "DJW CALLING bpf_func at %p %d\n", bpf_func, __LINE__);
 	return bpf_func(ctx, insnsi);
 }
 

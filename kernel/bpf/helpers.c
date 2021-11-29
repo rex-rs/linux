@@ -223,6 +223,8 @@ BPF_CALL_0(bpf_get_current_pid_tgid)
 {
 	struct task_struct *task = current;
 
+    printk(KERN_WARNING "DJW bpf_get_current_pid_tgid %d\n", __LINE__);
+    
 	if (unlikely(!task))
 		return -EINVAL;
 
