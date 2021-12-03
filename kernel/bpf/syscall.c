@@ -3007,7 +3007,7 @@ put_token:
 }
 
 #define BPF_PROG_LOAD_DJW  0x1234beef
-static int bpf_prog_load_djw(union bpf_attr *attr, union bpf_attr __user *uattr)
+static int bpf_prog_load_djw(union bpf_attr *attr, bpfptr_t uattr)
 {
 	enum bpf_prog_type type = attr->prog_type;
 	struct bpf_prog *prog, *dst_prog = NULL;
@@ -3038,8 +3038,9 @@ static int bpf_prog_load_djw(union bpf_attr *attr, union bpf_attr __user *uattr)
 
     printk(KERN_WARNING "DJW %d\n", __LINE__);
 	/* copy eBPF program license from user space */
-	if (strncpy_from_user(license, u64_to_user_ptr(attr->license),
-			      sizeof(license) - 1) < 0)
+    if (strncpy_from_bpfptr(license,
+                            make_bpfptr(attr->license, uattr.is_kernel),
+                            sizeof(license) - 1) < 0)
 		return -EFAULT;
 	license[sizeof(license) - 1] = 0;
 
@@ -3134,11 +3135,13 @@ static int bpf_prog_load_djw(union bpf_attr *attr, union bpf_attr __user *uattr)
 	prog->len = attr->insn_cnt;
     printk(KERN_WARNING "DJW %d\n", __LINE__);
 	err = -EFAULT;
-    //	if (copy_from_user(prog->insns, u64_to_user_ptr(attr->insns),
-    //			   bpf_prog_insn_size(prog)) != 0)
+	//if (copy_from_bpfptr(prog->insns,
+	//		     make_bpfptr(attr->insns, uattr.is_kernel),
+	//		     bpf_prog_insn_size(prog)) != 0)
     /* DJW len is now just the size of the actual code */
-	if (copy_from_user(prog->insns, u64_to_user_ptr(attr->insns),
-                       prog->len) != 0)    
+	if (copy_from_bpfptr(prog->insns,
+			     make_bpfptr(attr->insns, uattr.is_kernel),
+                 prog->len) != 0)
 		goto free_prog_sec;
 
 	prog->orig_prog = NULL;
