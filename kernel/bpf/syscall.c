@@ -3007,6 +3007,7 @@ put_token:
 }
 
 #define BPF_PROG_LOAD_DJW  0x1234beef
+#include <linux/vmalloc.h>
 static int bpf_prog_load_djw(union bpf_attr *attr, bpfptr_t uattr)
 {
 	enum bpf_prog_type type = attr->prog_type;
@@ -3180,11 +3181,18 @@ static int bpf_prog_load_djw(union bpf_attr *attr, bpfptr_t uattr)
 	/* if (err < 0) */
 	/* 	goto free_used_maps; */
     
-    prog->bpf_func = bpf_jit_alloc_exec(round_up(prog->len, PAGE_SIZE));
+    //prog->bpf_func = bpf_jit_alloc_exec(round_up(prog->len, PAGE_SIZE));
+    //prog->bpf_func = __vmalloc(round_up(prog->len, PAGE_SIZE), GFP_KERNEL, PAGE_KERNEL_EXEC);
+    //prog->bpf_func = module_alloc(round_up(prog->len, PAGE_SIZE));
+	prog->bpf_func = __vmalloc_node_range(round_up(prog->len, PAGE_SIZE), PAGE_SIZE,
+                                          0xffffffff90000000, 0xffffffffa0000000, GFP_KERNEL,
+                                          PAGE_KERNEL_EXEC, 0, NUMA_NO_NODE,
+                                          __builtin_return_address(0));
+    printk(KERN_WARNING "DJW bpf_func vmalloc at %llx %d\n", (u64)prog->bpf_func, __LINE__);
     memcpy(prog->bpf_func, prog->insns, prog->len);
 
     
-    printk(KERN_WARNING "DJW bpf_func at %p %d\n", prog->bpf_func, __LINE__);
+    printk(KERN_WARNING "DJW bpf_func at %llx %d\n", (u64)prog->bpf_func, __LINE__);
     printk(KERN_WARNING "DJW bpf_func at %x %x %x %d\n", ((u8 *)prog->bpf_func)[0], ((u8 *)prog->bpf_func)[1], ((u8 *)prog->bpf_func)[2], __LINE__);
 	err = bpf_prog_alloc_id(prog);
 	if (err)
