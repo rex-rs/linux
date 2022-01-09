@@ -3184,6 +3184,7 @@ static int bpf_prog_load_djw(union bpf_attr *attr, bpfptr_t uattr)
     //prog->bpf_func = bpf_jit_alloc_exec(round_up(prog->len, PAGE_SIZE));
     //prog->bpf_func = __vmalloc(round_up(prog->len, PAGE_SIZE), GFP_KERNEL, PAGE_KERNEL_EXEC);
     //prog->bpf_func = module_alloc(round_up(prog->len, PAGE_SIZE));
+	bpf_get_trace_printk_proto();
 	prog->bpf_func = __vmalloc_node_range(round_up(prog->len, PAGE_SIZE), PAGE_SIZE,
                                           0xffffffff90000000, 0xffffffffa0000000, GFP_KERNEL,
                                           PAGE_KERNEL_EXEC, 0, NUMA_NO_NODE,
