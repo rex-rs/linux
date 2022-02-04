@@ -1561,6 +1561,8 @@ union bpf_attr {
 			__u32		attach_btf_obj_fd;
 		};
 		__u32		core_relo_cnt;	/* number of bpf_core_relo */
+		__u32		:32;		/* pad */
+		__u32		rustfd;		/* file descriptor of Rust Program */
 		__aligned_u64	fd_array;	/* array of FDs */
 		__aligned_u64	core_relos;
 		__u32		core_relo_rec_size; /* sizeof(struct bpf_core_relo) */
