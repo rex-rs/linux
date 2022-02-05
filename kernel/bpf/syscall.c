@@ -3028,41 +3028,41 @@ put_token:
 
 static bool ehdr_is_valid(const Elf64_Ehdr *hdr)
 {
-    /*
-     * 1. Validate that this is an ELF64 header we support.
-     *
-     * Note: e_ident[EI_OSABI] and e_ident[EI_ABIVERSION] are deliberately NOT
-     * checked as compilers do not provide a way to override this without
-     * building the entire toolchain from scratch.
-     */
-    if (!(hdr->e_ident[EI_MAG0] == ELFMAG0
-            && hdr->e_ident[EI_MAG1] == ELFMAG1
-            && hdr->e_ident[EI_MAG2] == ELFMAG2
-            && hdr->e_ident[EI_MAG3] == ELFMAG3
-            && hdr->e_ident[EI_CLASS] == ELFCLASS64
-            && hdr->e_ident[EI_DATA] == EI_DATA_TARGET
-            && hdr->e_version == EV_CURRENT))
-        return false;
-    /*
-     * 2. Validate ELF64 header internal sizes match what we expect, and that
-     * at least one program header entry is present.
-     */
-    if (hdr->e_ehsize != sizeof (Elf64_Ehdr))
-        return false;
-    if (hdr->e_phnum < 1)
-        return false;
-    if (hdr->e_phentsize != sizeof (Elf64_Phdr))
-        return false;
-    /*
-     * 3. Validate that this is an executable for our target architecture.
-     */
-    if ((hdr->e_type != ET_EXEC)
-        && (hdr->e_type != ET_DYN)) /* DJW: PIE makes ET_DYN */
-        return false;
-    if (hdr->e_machine != EM_TARGET)
-        return false;
+	/*
+	 * 1. Validate that this is an ELF64 header we support.
+	 *
+	 * Note: e_ident[EI_OSABI] and e_ident[EI_ABIVERSION] are deliberately NOT
+	 * checked as compilers do not provide a way to override this without
+	 * building the entire toolchain from scratch.
+	 */
+	if (!(hdr->e_ident[EI_MAG0] == ELFMAG0
+	    && hdr->e_ident[EI_MAG1] == ELFMAG1
+	    && hdr->e_ident[EI_MAG2] == ELFMAG2
+	    && hdr->e_ident[EI_MAG3] == ELFMAG3
+	    && hdr->e_ident[EI_CLASS] == ELFCLASS64
+	    && hdr->e_ident[EI_DATA] == EI_DATA_TARGET
+	    && hdr->e_version == EV_CURRENT))
+		return false;
+	/*
+	 * 2. Validate ELF64 header internal sizes match what we expect, and that
+	 * at least one program header entry is present.
+	 */
+	if (hdr->e_ehsize != sizeof (Elf64_Ehdr))
+		return false;
+	if (hdr->e_phnum < 1)
+		return false;
+	if (hdr->e_phentsize != sizeof (Elf64_Phdr))
+		return false;
+	/*
+	 * 3. Validate that this is an executable for our target architecture.
+	 */
+	if ((hdr->e_type != ET_EXEC)
+	    && (hdr->e_type != ET_DYN)) /* DJW: PIE makes ET_DYN */
+		return false;
+	if (hdr->e_machine != EM_TARGET)
+		return false;
 
-    return true;
+	return true;
 }
 
 /*
@@ -3100,11 +3100,21 @@ static int align_up(Elf64_Addr addr, Elf64_Xword align, Elf64_Addr *out_result)
         return 1;
 }
 
+static int elf_read(struct file *file, void *buf, size_t len, loff_t pos)
+{
+	ssize_t rv;
+
+	rv = kernel_read(file, buf, len, &pos);
+	if (unlikely(rv != len)) {
+		return (rv < 0) ? rv : -EIO;
+	}
+	return 0;
+}
 
 #define BPF_PROG_LOAD_DJW  0x1234beef
 #include <linux/vmalloc.h>
 #include <asm-generic/mman-common.h>
-#define MAX_PROG_SZ (8192 * 4)
+#define MAX_PROG_SZ (8192 << 2)
 static int bpf_prog_load_djw(union bpf_attr *attr, bpfptr_t uattr)
 {
 	enum bpf_prog_type type = attr->prog_type;
@@ -3115,41 +3125,34 @@ static int bpf_prog_load_djw(union bpf_attr *attr, bpfptr_t uattr)
 	bool is_gpl;
 
 	u64 mem_start = 0xffffffff90000000;
-	void *mem, *p_entry;
+	void *mem;
 	size_t mem_size = MAX_PROG_SZ;
-	ssize_t nbytes;
-    Elf64_Phdr *phdr = NULL;
-    Elf64_Ehdr *ehdr = NULL;
-    Elf64_Addr e_entry;                 /* Program entry point */
-    Elf64_Addr e_end;                   /* Highest memory address occupied */
-	struct file *rustfd;
+	Elf64_Phdr *phdr = NULL;
+	Elf64_Ehdr *ehdr = NULL;
+	Elf64_Addr e_entry;                 /* Program entry point */
+	Elf64_Addr e_end;                   /* Highest memory address occupied */
+	struct file *filp;
 	size_t ph_size;
 	Elf64_Addr plast_vaddr = 0;
 	Elf64_Half ph_i;
 
-    printk(KERN_WARNING "DJW %d\n", __LINE__);
-
 	if (CHECK_ATTR(BPF_PROG_LOAD))
 		return -EINVAL;
 
-    printk(KERN_WARNING "DJW %d\n", __LINE__);
-
-    if (attr->prog_flags & ~(BPF_F_STRICT_ALIGNMENT |
+	if (attr->prog_flags & ~(BPF_F_STRICT_ALIGNMENT |
 				 BPF_F_ANY_ALIGNMENT |
 				 BPF_F_TEST_STATE_FREQ |
 				 BPF_F_SLEEPABLE |
 				 BPF_F_TEST_RND_HI32))
 		return -EINVAL;
 
-    printk(KERN_WARNING "DJW %d\n", __LINE__);
 	if (!IS_ENABLED(CONFIG_HAVE_EFFICIENT_UNALIGNED_ACCESS) &&
 	    (attr->prog_flags & BPF_F_ANY_ALIGNMENT) &&
 	    !bpf_capable())
 		return -EPERM;
 
-    printk(KERN_WARNING "DJW %d\n", __LINE__);
 	/* copy eBPF program license from user space */
-    if (strncpy_from_bpfptr(license,
+	if (strncpy_from_bpfptr(license,
                             make_bpfptr(attr->license, uattr.is_kernel),
                             sizeof(license) - 1) < 0)
 		return -EFAULT;
@@ -3158,21 +3161,16 @@ static int bpf_prog_load_djw(union bpf_attr *attr, bpfptr_t uattr)
 	/* eBPF programs must be GPL compatible to use GPL-ed functions */
 	is_gpl = license_is_gpl_compatible(license);
 
-    printk(KERN_WARNING "DJW %d\n", __LINE__);
-    
-	/*if (attr->insn_cnt == 0 ||
+	/*
+	if (attr->insn_cnt == 0 ||
 	    attr->insn_cnt > (bpf_capable() ? BPF_COMPLEXITY_LIMIT_INSNS : BPF_MAXINSNS))
-		return -E2BIG;*/
+		return -E2BIG;
+	*/
 
-    printk(KERN_WARNING "DJW %d\n", __LINE__);
-    
-	if (type != BPF_PROG_TYPE_SOCKET_FILTER &&
-	    type != BPF_PROG_TYPE_CGROUP_SKB &&
-	    !bpf_capable())
+	/* Root-only for now */
+	if (!bpf_capable())
 		return -EPERM;
 
-    printk(KERN_WARNING "DJW %d\n", __LINE__);
-    
 	if (is_net_admin_prog_type(type) && !capable(CAP_NET_ADMIN) && !capable(CAP_SYS_ADMIN))
 		return -EPERM;
 	if (is_perfmon_prog_type(type) && !perfmon_capable())
@@ -3181,7 +3179,6 @@ static int bpf_prog_load_djw(union bpf_attr *attr, bpfptr_t uattr)
 	/* attach_prog_fd/attach_btf_obj_fd can specify fd of either bpf_prog
 	 * or btf, we need to check which one it is
 	 */
-    printk(KERN_WARNING "DJW %d\n", __LINE__);
 	if (attr->attach_prog_fd) {
 		dst_prog = bpf_prog_get(attr->attach_prog_fd);
 		if (IS_ERR(dst_prog)) {
@@ -3207,7 +3204,6 @@ static int bpf_prog_load_djw(union bpf_attr *attr, bpfptr_t uattr)
 		btf_get(attach_btf);
 	}
 
-    printk(KERN_WARNING "DJW %d\n", __LINE__);
 	bpf_prog_load_fixup_attach_type(attr);
 	if (bpf_prog_load_check_attach(type, attr->expected_attach_type,
 				       attach_btf, attr->attach_btf_id,
@@ -3218,8 +3214,7 @@ static int bpf_prog_load_djw(union bpf_attr *attr, bpfptr_t uattr)
 			btf_put(attach_btf);
 		return -EINVAL;
 	}
-    printk(KERN_WARNING "DJW %d\n", __LINE__);
-    
+
 	/* plain bpf_prog allocation */
 	prog = bpf_prog_alloc(bpf_prog_size(attr->insn_cnt), GFP_USER);
 	if (!prog) {
@@ -3229,8 +3224,7 @@ static int bpf_prog_load_djw(union bpf_attr *attr, bpfptr_t uattr)
 			btf_put(attach_btf);
 		return -ENOMEM;
 	}
-    printk(KERN_WARNING "DJW %d\n", __LINE__);
-    
+
 	prog->expected_attach_type = attr->expected_attach_type;
 	prog->aux->attach_btf = attach_btf;
 	prog->aux->attach_btf_id = attr->attach_btf_id;
@@ -3244,31 +3238,27 @@ static int bpf_prog_load_djw(union bpf_attr *attr, bpfptr_t uattr)
 
 	prog->aux->user = get_current_user();
 	prog->len = attr->insn_cnt;
-    printk(KERN_WARNING "DJW %d\n", __LINE__);
 	err = -EFAULT;
 	//if (copy_from_bpfptr(prog->insns,
 	//		     make_bpfptr(attr->insns, uattr.is_kernel),
 	//		     bpf_prog_insn_size(prog)) != 0)
-    /* DJW len is now just the size of the actual code */
+	/* DJW len is now just the size of the actual code */
 	/*if (copy_from_bpfptr(prog->insns,
 			     make_bpfptr(attr->insns, uattr.is_kernel),
                  prog->len) != 0)
 		goto free_prog_sec;*/
 
 	prog->orig_prog = NULL;
-	//prog->jited = 0;
-    prog->jited = 1; /* DJW: we are always 'jited' */
-    
+	prog->jited = 1; /* DJW: we are always 'jited' */
+
 	atomic64_set(&prog->aux->refcnt, 1);
 	prog->gpl_compatible = is_gpl ? 1 : 0;
-    printk(KERN_WARNING "DJW %d\n", __LINE__);
 	if (bpf_prog_is_dev_bound(prog->aux)) {
 		err = bpf_prog_offload_init(prog, attr);
 		if (err)
 			goto free_prog_sec;
 	}
 
-    printk(KERN_WARNING "DJW %d\n", __LINE__);
 	/* find program type: socket_filter vs tracing_filter */
 	err = find_prog_type(type, prog);
 	if (err < 0)
@@ -3280,7 +3270,6 @@ static int bpf_prog_load_djw(union bpf_attr *attr, bpfptr_t uattr)
 	if (err < 0)
 		goto free_prog_sec;
 
-    printk(KERN_WARNING "DJW %d\n", __LINE__);
 	/* run eBPF verifier */
 	/* err = bpf_check(&prog, attr, uattr); */
 	/* if (err < 0) */
@@ -3296,157 +3285,167 @@ static int bpf_prog_load_djw(union bpf_attr *attr, bpfptr_t uattr)
     //prog->bpf_func = module_alloc(round_up(prog->len, PAGE_SIZE));
 	bpf_get_trace_printk_proto();
 
-	rustfd = fget(attr->rustfd);
-    ehdr = kmalloc(sizeof(Elf64_Ehdr), GFP_KERNEL);
-    if (ehdr == NULL)
-        goto out_error;
-    nbytes = kernel_read(rustfd, ehdr, sizeof(Elf64_Ehdr), 0);
-    if (nbytes < 0)
-        goto out_error;
-    if (nbytes != sizeof(Elf64_Ehdr))
-        goto out_invalid;
-    if (!ehdr_is_valid(ehdr))
-        goto out_invalid;
-	
-    e_entry = ehdr->e_entry;
+	filp = fget(attr->rustfd);
+	ehdr = kmalloc(sizeof(Elf64_Ehdr), GFP_KERNEL);
+	if (ehdr == NULL) {
+		fput(filp);
+		err = -ENOMEM;
+		goto free_prog_sec;
+	}
+	err = elf_read(filp, ehdr, sizeof(Elf64_Ehdr), 0);
+	if (err)
+		goto error_ehdr;
+	if (!ehdr_is_valid(ehdr)) {
+		err = -EINVAL;
+		goto error_ehdr;
+	}
 
-    ph_size = ehdr->e_phnum * ehdr->e_phentsize;
-    phdr = kmalloc(ph_size, GFP_KERNEL);
-    if (!phdr)
-        goto out_error;
-    nbytes = kernel_read(rustfd, phdr, ph_size, &ehdr->e_phoff);
-    if (nbytes < 0)
-        goto out_error;
-    if (nbytes != ph_size)
-        goto out_invalid;
+	e_entry = ehdr->e_entry;
+	ph_size = ehdr->e_phnum * ehdr->e_phentsize;
+	phdr = kmalloc(ph_size, GFP_KERNEL);
+	if (!phdr) {
+		err = -ENOMEM;
+		goto error_ehdr;
+	}
+	err = elf_read(filp, phdr, ph_size, ehdr->e_phoff);
+	if (err)
+		goto error_phdr;
 	
-    /*
-     * Load all program segments with the PT_LOAD directive.
-     */
-    e_end = 0;
-    for (ph_i = 0; ph_i < ehdr->e_phnum; ph_i++) {
-        Elf64_Addr p_vaddr = phdr[ph_i].p_vaddr;
-        Elf64_Xword p_filesz = phdr[ph_i].p_filesz;
-        Elf64_Xword p_memsz = phdr[ph_i].p_memsz;
-        Elf64_Xword p_align = phdr[ph_i].p_align;
-        Elf64_Addr temp, p_vaddr_start, p_vaddr_end;
+	/*
+	 * Load all program segments with the PT_LOAD directive.
+	 */
+	e_end = 0;
+	err = -EINVAL;
+	for (ph_i = 0; ph_i < ehdr->e_phnum; ph_i++) {
+		Elf64_Addr p_vaddr = phdr[ph_i].p_vaddr;
+		Elf64_Xword p_filesz = phdr[ph_i].p_filesz;
+		Elf64_Xword p_memsz = phdr[ph_i].p_memsz;
+		Elf64_Xword p_align = phdr[ph_i].p_align;
+		Elf64_Addr temp, p_vaddr_start, p_vaddr_end;
 		pgprot_t prt;
 		int prot;
+		void *readbuf;
 
-        if (phdr[ph_i].p_type != PT_LOAD)
-            continue;
+		if (phdr[ph_i].p_type != PT_LOAD)
+			continue;
 
-        /*
-         * The ELF specification mandates that program headers are sorted on
-         * p_vaddr in ascending order. Enforce this, at the same time avoiding
-         * any surprises later.
-         */
-        if (p_vaddr < plast_vaddr)
-            goto out_invalid;
-        else
-            plast_vaddr = p_vaddr;
-        /*
-         * Compute p_vaddr_start = p_vaddr, aligned down to requested alignment
-         * and verify result is within range.
-         */
-        if (align_down(p_vaddr, p_align, &p_vaddr_start))
-            goto out_invalid;
-        /*
-         * Disallow overlapping segments. This may be overkill, but in practice
-         * the Solo5 toolchains do not produce such executables.
-         */
-        if (p_vaddr_start < e_end)
-            goto out_invalid;
-        /*
-         * Verify p_vaddr + p_filesz is within range.
-         */
-        if (p_vaddr >= mem_size)
-            goto out_invalid;
-        if (check_add_overflow(p_vaddr, p_filesz, &temp))
-            goto out_invalid;
-        if (temp > mem_size)
-            goto out_invalid;
-        /*
-         * Compute p_vaddr_end = p_vaddr + p_memsz, aligned up to requested
-         * alignment and verify result is within range.
-         */
-        if (p_memsz < p_filesz)
-            goto out_invalid;
-        if (check_add_overflow(p_vaddr, p_memsz, &p_vaddr_end))
-            goto out_invalid;
-        if (align_up(p_vaddr_end, p_align, &p_vaddr_end))
-            goto out_invalid;
-        if (p_vaddr_end > mem_size)
-            goto out_invalid;
-        /*
-         * Keep track of the highest byte of memory occupied by the program.
-         */
-        if (p_vaddr_end > e_end) {
-            e_end = p_vaddr_end;
-        }
+		/*
+		 * The ELF specification mandates that program headers are sorted on
+		 * p_vaddr in ascending order. Enforce this, at the same time avoiding
+		 * any surprises later.
+		 */
+		if (p_vaddr < plast_vaddr)
+			goto error_phdr;
+		else
+			plast_vaddr = p_vaddr;
+		
+		/*
+		 * Compute p_vaddr_start = p_vaddr, aligned down to requested alignment
+		 * and verify result is within range.
+		 */
+		if (align_down(p_vaddr, p_align, &p_vaddr_start))
+			goto error_phdr;
+		
+		/*
+		 * Disallow overlapping segments. This may be overkill, but in practice
+		 * the Solo5 toolchains do not produce such executables.
+		 */
+		if (p_vaddr_start < e_end)
+			goto error_phdr;
 
-		 /*
-         * Memory protection flags should be applied to the aligned address
-         * range (p_vaddr_start .. p_vaddr_end). Before we apply them, also
-         * verify that the address range is aligned to the architectural page
-         * size.
-         */
-         if (p_vaddr_start & (EM_PAGE_SIZE - 1)) 
-             goto out_invalid; 
-         if (p_vaddr_end & (EM_PAGE_SIZE - 1)) 
-             goto out_invalid; 
-         prot = PROT_NONE; 
-         if (phdr[ph_i].p_flags & PF_R) 
-             prot |= PROT_READ; 
-         if (phdr[ph_i].p_flags & PF_W) 
-             prot |= PROT_WRITE; 
-         if (phdr[ph_i].p_flags & PF_X) 
-             prot |= PROT_EXEC; 
-         if (prot & PROT_WRITE && prot & PROT_EXEC)
-             goto out_invalid; 
+		/*
+		 * Verify p_vaddr + p_filesz is within range.
+		 */
+		if (p_vaddr >= mem_size)
+			goto error_phdr;
+		if (check_add_overflow(p_vaddr, p_filesz, &temp))
+			goto error_phdr;
+		if (temp > mem_size)
+			goto error_phdr;
+		
+		/*
+		 * Compute p_vaddr_end = p_vaddr + p_memsz, aligned up to requested
+		 * alignment and verify result is within range.
+		 */
+		if (p_memsz < p_filesz)
+			goto error_phdr;
+		if (check_add_overflow(p_vaddr, p_memsz, &p_vaddr_end))
+			goto error_phdr;
+		if (align_up(p_vaddr_end, p_align, &p_vaddr_end))
+			goto error_phdr;
+		if (p_vaddr_end > mem_size)
+			goto error_phdr;
+		
+		/* Enforce 4k alignment for now */
+		if (p_align != 1UL << PAGE_SHIFT)
+			goto error_phdr;
+		
+		/*
+		 * Keep track of the highest byte of memory occupied by the program.
+		 */
+		if (p_vaddr_end > e_end) {
+			e_end = p_vaddr_end;
+		}
 
-		if (prot & PROT_READ)
-			prt = PAGE_KERNEL_RO;
-		else if ((prot & PROT_READ) && (prot & PROT_EXEC))
-			prt = PAGE_KERNEL_ROX;
+		/*
+		 * Memory protection flags should be applied to the aligned address
+		 * range (p_vaddr_start .. p_vaddr_end). Before we apply them, also
+		 * verify that the address range is aligned to the architectural page
+		 * size.
+		 */
+		if (p_vaddr_start & (EM_PAGE_SIZE - 1)) 
+			goto error_phdr; 
+		if (p_vaddr_end & (EM_PAGE_SIZE - 1)) 
+			goto error_phdr; 
+		prot = PROT_NONE; 
+		if (phdr[ph_i].p_flags & PF_R) 
+			prot |= PROT_READ; 
+		if (phdr[ph_i].p_flags & PF_W) 
+			prot |= PROT_WRITE; 
+		if (phdr[ph_i].p_flags & PF_X) 
+			prot |= PROT_EXEC; 
+		if ((prot & PROT_WRITE) && (prot & PROT_EXEC))
+			goto error_phdr; 
+
+		// TODO find a way to fix permission
+		if ((prot & PROT_READ) && (prot & PROT_EXEC))
+			prt = PAGE_KERNEL_EXEC;
 		else if ((prot & PROT_READ) && (prot & PROT_WRITE))
-			prt = PAGE_KERNEL;	
-		else goto out_error;
+			prt = PAGE_KERNEL;
+		else if (prot & PROT_READ)
+			prt = PAGE_KERNEL;
+		else
+			goto error_phdr;
             
-        /*
-         * Load the segment (p_vaddr .. p_vaddr + p_filesz) into host memory at
-         * host_vaddr and ensure any BSS (p_memsz - p_filesz) is initialised to
-         * zero.
-         */
-		printk(KERN_WARNING "DJW %d %llx %llx %llx %llx\n", __LINE__, p_vaddr_start, p_vaddr_end, p_align, mem_start);
-		mem = __vmalloc_node_range(p_vaddr_end - p_vaddr_start, p_align,
-                                          mem_start + ph_i * p_align, mem_start + (ph_i + 1) * p_align, GFP_KERNEL,
-                                          prt, 0, NUMA_NO_NODE,
-                                          __builtin_return_address(0));
-		printk(KERN_WARNING "DJW bpf_func vmalloc at %llx %d\n", (u64)mem, __LINE__);
-		if ((e_entry > p_vaddr_start) && (e_entry < p_vaddr_end))
-			p_entry = mem + e_entry;
-        /*
-         * Double check result for host (caller) address space overflow.
-         */
-        nbytes = kernel_read(rustfd, mem, p_filesz,
-                &phdr[ph_i].p_offset);
-        if (nbytes < 0)
-            goto out_error;
-        if (nbytes != p_filesz)
-            goto out_invalid;
-		printk(KERN_WARNING "DJW %d\n", __LINE__);
-        memset(mem + p_filesz, 0, p_memsz - p_filesz);
+		// TODO check for NULL return value
+		mem = __vmalloc_node_range(round_up(p_vaddr_end - p_vaddr_start, p_align), p_align,
+				round_up(mem_start + p_vaddr_start, p_align), // TODO check for potential overflow 
+				round_up(mem_start + p_vaddr_end, p_align), 
+				GFP_KERNEL, prt, VM_NO_GUARD, NUMA_NO_NODE, __builtin_return_address(0));
+		
+		readbuf = kmalloc(p_filesz, GFP_KERNEL);
+		if (!readbuf) {
+			err = -ENOMEM;
+			goto error_phdr;
+		}
+		err = elf_read(filp, readbuf, p_filesz, phdr[ph_i].p_offset);
+		if (err) {
+			kfree(readbuf); 
+			// TODO figure out a way to deal with freeing vmalloc pages across iterations later
+			goto error_phdr;
+		}
+		memcpy(mem, readbuf, p_filesz);
+		memset(mem + p_filesz, 0, p_memsz - p_filesz);
+		kfree(readbuf);
+	}
 
-    }
-    mem_size = e_end;
+	mem_size = e_end;
 
-    kfree(ehdr);
-    kfree(phdr);
+	kfree(ehdr);
+	kfree(phdr);
 
-	prog->bpf_func = p_entry;
-    printk(KERN_WARNING "DJW bpf_func at %llx %d\n", (u64)prog->bpf_func, __LINE__);
-    printk(KERN_WARNING "DJW bpf_func at %x %x %x %d\n", ((u8 *)prog->bpf_func)[0], ((u8 *)prog->bpf_func)[1], ((u8 *)prog->bpf_func)[2], __LINE__);
+	prog->bpf_func = (void *)(mem_start + e_entry);
+	
 	err = bpf_prog_alloc_id(prog);
 	if (err)
 		goto free_used_maps;
@@ -3481,6 +3480,11 @@ free_used_maps:
 	 */
 	__bpf_prog_put_noref(prog, prog->aux->func_cnt);
 	return err;
+error_phdr:
+	kfree(phdr);
+error_ehdr:
+	kfree(ehdr);
+	fput(filp);
 free_prog_sec:
 	free_uid(prog->aux->user);
 	security_bpf_prog_free(prog->aux);
@@ -3489,18 +3493,6 @@ free_prog:
 		btf_put(prog->aux->attach_btf);
 	bpf_prog_free(prog);
 	return err;
-
-out_error:
-    printk(KERN_WARNING "%d: Error", attr->rustfd);
-    kfree(ehdr);
-    kfree(phdr);
-    return -EINVAL;
-
-out_invalid:
-    printk(KERN_WARNING "%d: Invalid or unsupported executable", attr->rustfd);
-    kfree(ehdr);
-    kfree(phdr);
-    return -EINVAL;
 }
 
 
