@@ -23,6 +23,7 @@
 #include <linux/sockptr.h>
 #include <crypto/sha1.h>
 #include <linux/u64_stats_sync.h>
+#include <linux/list.h>
 
 #include <net/sch_generic.h>
 
@@ -677,6 +678,12 @@ struct bpf_prog_stats {
 struct bpf_timed_may_goto {
 	u64 count;
 	u64 timestamp;
+};
+
+
+struct bpf_mem_node {
+	struct list_head node;
+	void *mem;
 };
 
 struct sk_filter {
