@@ -2316,6 +2316,23 @@ static void __bpf_prog_put_noref(struct bpf_prog *prog, bool deferred)
 	kvfree(prog->aux->jited_linfo);
 	kvfree(prog->aux->linfo);
 	kfree(prog->aux->kfunc_tab);
+
+	if (prog->no_bpf) {
+		struct list_head *it;
+		struct list_head *temp;
+		struct bpf_mem_node *curr_node;
+
+		list_for_each_safe(it, temp, &prog->mem_head.node) {
+			curr_node = list_entry(it, struct bpf_mem_node, node);
+			list_del(it);
+			vfree(curr_node->mem);
+			kfree(curr_node);
+		}
+
+		// We have already cleared the prog pages
+		prog->jited = 0;
+	}
+
 	if (prog->aux->attach_btf)
 		btf_put(prog->aux->attach_btf);
 
@@ -2903,6 +2920,7 @@ static int bpf_prog_load(union bpf_attr *attr, bpfptr_t uattr, u32 uattr_size)
 
 	prog->orig_prog = NULL;
 	prog->jited = 0;
+	prog->no_bpf = 0;
 
 	atomic64_set(&prog->aux->refcnt, 1);
 
@@ -3279,11 +3297,14 @@ static int bpf_prog_load_djw(union bpf_attr *attr, bpfptr_t uattr)
 	/* prog = bpf_prog_select_runtime(prog, &err); */
 	/* if (err < 0) */
 	/* 	goto free_used_maps; */
-    
-    //prog->bpf_func = bpf_jit_alloc_exec(round_up(prog->len, PAGE_SIZE));
-    //prog->bpf_func = __vmalloc(round_up(prog->len, PAGE_SIZE), GFP_KERNEL, PAGE_KERNEL_EXEC);
-    //prog->bpf_func = module_alloc(round_up(prog->len, PAGE_SIZE));
+
+	//prog->bpf_func = bpf_jit_alloc_exec(round_up(prog->len, PAGE_SIZE));
+	//prog->bpf_func = __vmalloc(round_up(prog->len, PAGE_SIZE), GFP_KERNEL, PAGE_KERNEL_EXEC);
+	//prog->bpf_func = module_alloc(round_up(prog->len, PAGE_SIZE));
 	bpf_get_trace_printk_proto();
+
+	INIT_LIST_HEAD(&prog->mem_head.node);
+	prog->no_bpf = 1;
 
 	filp = fget(attr->rustfd);
 	ehdr = kmalloc(sizeof(Elf64_Ehdr), GFP_KERNEL);
@@ -3310,7 +3331,7 @@ static int bpf_prog_load_djw(union bpf_attr *attr, bpfptr_t uattr)
 	err = elf_read(filp, phdr, ph_size, ehdr->e_phoff);
 	if (err)
 		goto error_phdr;
-	
+
 	/*
 	 * Load all program segments with the PT_LOAD directive.
 	 */
@@ -3325,6 +3346,7 @@ static int bpf_prog_load_djw(union bpf_attr *attr, bpfptr_t uattr)
 		pgprot_t prt;
 		int prot;
 		void *readbuf;
+		struct bpf_mem_node *curr_node;
 
 		if (phdr[ph_i].p_type != PT_LOAD)
 			continue;
@@ -3338,14 +3360,14 @@ static int bpf_prog_load_djw(union bpf_attr *attr, bpfptr_t uattr)
 			goto error_phdr;
 		else
 			plast_vaddr = p_vaddr;
-		
+
 		/*
 		 * Compute p_vaddr_start = p_vaddr, aligned down to requested alignment
 		 * and verify result is within range.
 		 */
 		if (align_down(p_vaddr, p_align, &p_vaddr_start))
 			goto error_phdr;
-		
+
 		/*
 		 * Disallow overlapping segments. This may be overkill, but in practice
 		 * the Solo5 toolchains do not produce such executables.
@@ -3362,7 +3384,7 @@ static int bpf_prog_load_djw(union bpf_attr *attr, bpfptr_t uattr)
 			goto error_phdr;
 		if (temp > mem_size)
 			goto error_phdr;
-		
+
 		/*
 		 * Compute p_vaddr_end = p_vaddr + p_memsz, aligned up to requested
 		 * alignment and verify result is within range.
@@ -3375,11 +3397,11 @@ static int bpf_prog_load_djw(union bpf_attr *attr, bpfptr_t uattr)
 			goto error_phdr;
 		if (p_vaddr_end > mem_size)
 			goto error_phdr;
-		
+
 		/* Enforce 4k alignment for now */
 		if (p_align != 1UL << PAGE_SHIFT)
 			goto error_phdr;
-		
+
 		/*
 		 * Keep track of the highest byte of memory occupied by the program.
 		 */
@@ -3393,19 +3415,19 @@ static int bpf_prog_load_djw(union bpf_attr *attr, bpfptr_t uattr)
 		 * verify that the address range is aligned to the architectural page
 		 * size.
 		 */
-		if (p_vaddr_start & (EM_PAGE_SIZE - 1)) 
-			goto error_phdr; 
-		if (p_vaddr_end & (EM_PAGE_SIZE - 1)) 
-			goto error_phdr; 
-		prot = PROT_NONE; 
-		if (phdr[ph_i].p_flags & PF_R) 
-			prot |= PROT_READ; 
-		if (phdr[ph_i].p_flags & PF_W) 
-			prot |= PROT_WRITE; 
-		if (phdr[ph_i].p_flags & PF_X) 
-			prot |= PROT_EXEC; 
+		if (p_vaddr_start & (EM_PAGE_SIZE - 1))
+			goto error_phdr;
+		if (p_vaddr_end & (EM_PAGE_SIZE - 1))
+			goto error_phdr;
+		prot = PROT_NONE;
+		if (phdr[ph_i].p_flags & PF_R)
+			prot |= PROT_READ;
+		if (phdr[ph_i].p_flags & PF_W)
+			prot |= PROT_WRITE;
+		if (phdr[ph_i].p_flags & PF_X)
+			prot |= PROT_EXEC;
 		if ((prot & PROT_WRITE) && (prot & PROT_EXEC))
-			goto error_phdr; 
+			goto error_phdr;
 
 		// TODO find a way to fix permission
 		if ((prot & PROT_READ) && (prot & PROT_EXEC))
@@ -3416,36 +3438,45 @@ static int bpf_prog_load_djw(union bpf_attr *attr, bpfptr_t uattr)
 			prt = PAGE_KERNEL;
 		else
 			goto error_phdr;
-            
+
 		// TODO check for NULL return value
 		mem = __vmalloc_node_range(round_up(p_vaddr_end - p_vaddr_start, p_align), p_align,
-				round_up(mem_start + p_vaddr_start, p_align), // TODO check for potential overflow 
-				round_up(mem_start + p_vaddr_end, p_align), 
+				round_up(mem_start + p_vaddr_start, p_align), // TODO check for potential overflow
+				round_up(mem_start + p_vaddr_end, p_align),
 				GFP_KERNEL, prt, VM_NO_GUARD, NUMA_NO_NODE, __builtin_return_address(0));
-		
+		if (!mem) {
+			err = -ENOMEM;
+			goto error_vm;
+		}
+
 		readbuf = kmalloc(p_filesz, GFP_KERNEL);
 		if (!readbuf) {
+			vfree(mem);
 			err = -ENOMEM;
-			goto error_phdr;
+			goto error_vm;
 		}
 		err = elf_read(filp, readbuf, p_filesz, phdr[ph_i].p_offset);
 		if (err) {
-			kfree(readbuf); 
-			// TODO figure out a way to deal with freeing vmalloc pages across iterations later
-			goto error_phdr;
+			kfree(readbuf);
+			vfree(mem);
+			goto error_vm;
 		}
 		memcpy(mem, readbuf, p_filesz);
 		memset(mem + p_filesz, 0, p_memsz - p_filesz);
 		kfree(readbuf);
+		curr_node = kmalloc(sizeof(*curr_node), GFP_KERNEL);
+		curr_node->mem = mem;
+		list_add(&(curr_node->node), &(prog->mem_head.node));
 	}
 
 	mem_size = e_end;
 
 	kfree(ehdr);
 	kfree(phdr);
+	fput(filp);
 
 	prog->bpf_func = (void *)(mem_start + e_entry);
-	
+
 	err = bpf_prog_alloc_id(prog);
 	if (err)
 		goto free_used_maps;
@@ -3480,6 +3511,20 @@ free_used_maps:
 	 */
 	__bpf_prog_put_noref(prog, prog->aux->func_cnt);
 	return err;
+error_vm:
+	{
+		struct list_head *it;
+		struct list_head *temp;
+		struct bpf_mem_node *curr;
+
+		list_for_each_safe(it, temp, &prog->mem_head.node) {
+			curr = list_entry(it, struct bpf_mem_node, node);
+			list_del(it);
+			vfree(curr->mem);
+			kfree(curr);
+
+		}
+	}
 error_phdr:
 	kfree(phdr);
 error_ehdr:
