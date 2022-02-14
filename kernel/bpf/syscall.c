@@ -3347,6 +3347,14 @@ static int bpf_prog_load_djw(union bpf_attr *attr, bpfptr_t uattr)
 		int prot;
 		void *readbuf;
 		struct bpf_mem_node *curr_node;
+		struct page *page;
+		spinlock_t *ptl;
+		struct mm_struct *mm;
+		pte_t *ptep;
+		pte_t pte;
+		unsigned long flags;
+		int page_cnt;
+		int page_size;
 
 		if (phdr[ph_i].p_type != PT_LOAD)
 			continue;
@@ -3430,20 +3438,12 @@ static int bpf_prog_load_djw(union bpf_attr *attr, bpfptr_t uattr)
 			goto error_phdr;
 
 		// TODO find a way to fix permission
-		if ((prot & PROT_READ) && (prot & PROT_EXEC))
-			prt = PAGE_KERNEL_EXEC;
-		else if ((prot & PROT_READ) && (prot & PROT_WRITE))
-			prt = PAGE_KERNEL;
-		else if (prot & PROT_READ)
-			prt = PAGE_KERNEL;
-		else
-			goto error_phdr;
 
 		// TODO check for NULL return value
 		mem = __vmalloc_node_range(round_up(p_vaddr_end - p_vaddr_start, p_align), p_align,
 				round_up(mem_start + p_vaddr_start, p_align), // TODO check for potential overflow
 				round_up(mem_start + p_vaddr_end, p_align),
-				GFP_KERNEL, prt, VM_NO_GUARD, NUMA_NO_NODE, __builtin_return_address(0));
+				GFP_KERNEL, PAGE_KERNEL, VM_NO_GUARD, NUMA_NO_NODE, __builtin_return_address(0));
 		if (!mem) {
 			err = -ENOMEM;
 			goto error_vm;
@@ -3463,6 +3463,27 @@ static int bpf_prog_load_djw(union bpf_attr *attr, bpfptr_t uattr)
 		}
 		memcpy(mem, readbuf, p_filesz);
 		memset(mem + p_filesz, 0, p_memsz - p_filesz);
+		page_size = round_up(p_vaddr_end - p_vaddr_start, p_align);
+		mm = copy_init_mm();
+		for (page_cnt = 0; page_cnt < (page_size >> PAGE_SHIFT); page_cnt++) {
+			mem += page_cnt * (1UL << PAGE_SHIFT);
+			if ((prot & PROT_READ) && (prot & PROT_EXEC))
+			prt = PAGE_KERNEL_ROX;
+		else if ((prot & PROT_READ) && (prot & PROT_WRITE))
+			prt = PAGE_KERNEL;
+		else if (prot & PROT_READ)
+			prt = PAGE_KERNEL_RO;
+		else
+			goto error_phdr;
+		page = vmalloc_to_page(mem);
+		ptep = get_locked_pte(mm, (u64)mem, &ptl);
+		local_irq_save(flags);
+		pte = mk_pte(page, prt);
+		set_pte_at(mm, (u64)mem, ptep, pte);
+		local_irq_restore(flags);
+		pte_unmap_unlock(ptep, ptl);
+		}
+		mmput(mm);
 		kfree(readbuf);
 		curr_node = kmalloc(sizeof(*curr_node), GFP_KERNEL);
 		curr_node->mem = mem;
