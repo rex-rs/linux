@@ -2317,22 +2317,6 @@ static void __bpf_prog_put_noref(struct bpf_prog *prog, bool deferred)
 	kvfree(prog->aux->linfo);
 	kfree(prog->aux->kfunc_tab);
 
-	if (prog->no_bpf) {
-		struct list_head *it;
-		struct list_head *temp;
-		struct bpf_mem_node *curr_node;
-
-		list_for_each_safe(it, temp, &prog->mem_head.node) {
-			curr_node = list_entry(it, struct bpf_mem_node, node);
-			list_del(it);
-			vfree(curr_node->mem);
-			kfree(curr_node);
-		}
-
-		// We have already cleared the prog pages
-		prog->jited = 0;
-	}
-
 	if (prog->aux->attach_btf)
 		btf_put(prog->aux->attach_btf);
 
@@ -3475,6 +3459,7 @@ static int bpf_prog_load_djw(union bpf_attr *attr, bpfptr_t uattr)
 		kfree(readbuf);
 		curr_node = kmalloc(sizeof(*curr_node), GFP_KERNEL);
 		curr_node->mem = mem;
+		curr_node->page_cnt = page_cnt;
 		list_add(&(curr_node->node), &(prog->mem_head.node));
 	}
 
@@ -3529,6 +3514,8 @@ error_vm:
 		list_for_each_safe(it, temp, &prog->mem_head.node) {
 			curr = list_entry(it, struct bpf_mem_node, node);
 			list_del(it);
+			set_memory_nx((unsigned long)(curr->mem), curr->page_cnt);
+			set_memory_rw((unsigned long)(curr->mem), curr->page_cnt);
 			vfree(curr->mem);
 			kfree(curr);
 
