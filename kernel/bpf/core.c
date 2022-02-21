@@ -2813,6 +2813,27 @@ static void bpf_prog_free_deferred(struct work_struct *work)
 		aux->func[i]->aux->poke_tab = NULL;
 		bpf_jit_free(aux->func[i]);
 	}
+
+	if (aux->prog->no_bpf) {
+		struct list_head *it;
+		struct list_head *temp;
+		struct bpf_mem_node *curr_node;
+
+		BUG_ON(aux->func_cnt);
+
+		list_for_each_safe(it, temp, &aux->prog->mem_head.node) {
+			curr_node = list_entry(it, struct bpf_mem_node, node);
+			list_del(it);
+			set_memory_nx((unsigned long)(curr_node->mem), curr_node->page_cnt);
+			set_memory_rw((unsigned long)(curr_node->mem), curr_node->page_cnt);
+			vfree(curr_node->mem);
+			kfree(curr_node);
+		}
+
+		// We have already cleared the prog pages
+		aux->prog->jited = 0;
+	}
+
 	if (aux->real_func_cnt) {
 		kfree(aux->func);
 		bpf_prog_unlock_free(aux->prog);
