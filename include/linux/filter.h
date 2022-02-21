@@ -681,6 +681,7 @@ struct bpf_timed_may_goto {
 struct bpf_mem_node {
 	struct list_head node;
 	void *mem;
+	int page_cnt;
 };
 
 struct sk_filter {
