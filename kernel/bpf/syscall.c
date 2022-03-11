@@ -3417,6 +3417,9 @@ static int bpf_prog_load_djw(union bpf_attr *attr, bpfptr_t uattr)
 
 		// TODO check for NULL return value
 		vm_size = round_up(p_vaddr_end - p_vaddr_start, p_align);
+		if (!vm_size)
+			continue;
+
 		mem = __vmalloc_node_range(vm_size, p_align,
 				round_up(mem_start + p_vaddr_start, p_align), // TODO check for potential overflow
 				round_up(mem_start + p_vaddr_end, p_align),
@@ -3453,6 +3456,7 @@ static int bpf_prog_load_djw(union bpf_attr *attr, bpfptr_t uattr)
 		} else {
 			kfree(readbuf);
 			vfree(mem);
+			err = -EINVAL;
 			goto error_vm;
 		}
 
