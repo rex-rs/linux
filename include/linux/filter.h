@@ -23,7 +23,6 @@
 #include <linux/sockptr.h>
 #include <crypto/sha1.h>
 #include <linux/u64_stats_sync.h>
-#include <linux/list.h>
 
 #include <net/sch_generic.h>
 
@@ -660,11 +659,10 @@ struct bpf_prog_stats {
 	struct u64_stats_sync syncp;
 } __aligned(2 * sizeof(u64));
 
-
-struct bpf_mem_node {
-	struct list_head node;
+struct bpf_mem
+{
 	void *mem;
-	int page_cnt;
+	int total_page;
 };
 
 struct sk_filter {
