@@ -3389,6 +3389,8 @@ static int bpf_prog_load_djw(union bpf_attr *attr, bpfptr_t uattr)
 		if (p_vaddr_end > MAX_PROG_SZ)
 			goto error_phdr;
 
+		printk("p_vaddr=0x%lx, p_vaddr_start=0x%lx, p_vaddr_end=0x%lx", p_vaddr, p_vaddr_start, p_vaddr_end);
+
 		/* Enforce 4k alignment for now */
 		if (p_align != 1UL << PAGE_SHIFT)
 			goto error_phdr;
@@ -3495,6 +3497,50 @@ static int bpf_prog_load_djw(union bpf_attr *attr, bpfptr_t uattr)
 	fput(filp);
 
 	prog->bpf_func = (void *)(mem + e_entry);
+
+	if (attr->map_cnt) {
+		u64 map_offs[MAX_USED_MAPS];
+		struct bpf_map **used_maps;
+		int idx;
+
+		if (attr->map_cnt >= MAX_USED_MAPS) {
+			printk("attr->iu_maps_len >= MAX_USED_MAPS\n");
+			err = -EINVAL;
+			goto free_used_maps;
+		}
+
+		if (copy_from_bpfptr(map_offs, USER_BPFPTR((void *)(attr->map_offs)),
+							 sizeof(u64) * attr->map_cnt) != 0) {
+			printk("copy_from_bpfptr() != 0\n");
+			err = -EFAULT;
+			goto free_used_maps;
+		}
+
+		used_maps = kmalloc(sizeof(*used_maps) * attr->map_cnt, GFP_KERNEL);
+		if (!used_maps) {
+			printk("!used_maps\n");
+			err = -ENOMEM;
+			goto free_used_maps;
+		}
+
+		for (idx = 0; idx < attr->map_cnt; idx++) {
+			u64 *map_addr = (u64 *)(addr_start + map_offs[idx]);
+			struct bpf_map *curr = bpf_map_get(*map_addr);
+			printk("map offset = 0x%lx\n", map_offs[idx]);
+			printk("map addr = 0x%lx\n", *map_addr);
+
+			if (IS_ERR(curr)) {
+				kfree(used_maps);
+				err = PTR_ERR(curr);
+				goto free_used_maps;
+			}
+
+			used_maps[idx] = curr;
+			*map_addr = (u64)curr;
+		}
+		prog->aux->used_maps = used_maps;
+		prog->aux->used_map_cnt = attr->map_cnt;
+	}
 
 	err = bpf_prog_alloc_id(prog);
 	if (err)
