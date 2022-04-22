@@ -3135,7 +3135,8 @@ static int bpf_prog_load_djw(union bpf_attr *attr, bpfptr_t uattr)
 	size_t ph_size;
 	Elf64_Addr plast_vaddr = 0;
 	Elf64_Half ph_i;
-	int *vm_size;
+	u64 addr_start = 0;
+	int *vm_size = NULL, *sec_off = NULL;
 	int total_vm = 0, offset, total_page = 0;
 
 	if (CHECK_ATTR(BPF_PROG_LOAD))
@@ -3311,6 +3312,14 @@ static int bpf_prog_load_djw(union bpf_attr *attr, bpfptr_t uattr)
 		err = -ENOMEM;
 		goto error_ehdr;
 	}
+
+	vm_size = kmalloc(sizeof(int) * ehdr->e_phnum, GFP_KERNEL);
+	sec_off = kmalloc(sizeof(int) * ehdr->e_phnum, GFP_KERNEL);
+	if ((!vm_size) || (!sec_off)) {
+		err = -ENOMEM;
+		goto error_ehdr;
+	}
+
 	err = elf_read(filp, phdr, ph_size, ehdr->e_phoff);
 	if (err)
 		goto error_phdr;
@@ -3320,7 +3329,6 @@ static int bpf_prog_load_djw(union bpf_attr *attr, bpfptr_t uattr)
 	 */
 	e_end = 0;
 	err = -EINVAL;
-	vm_size = kmalloc(sizeof(int) * ehdr->e_phnum, GFP_KERNEL);
 	for (ph_i = 0; ph_i < ehdr->e_phnum; ph_i++) {
 		Elf64_Addr p_vaddr = phdr[ph_i].p_vaddr;
 		Elf64_Xword p_filesz = phdr[ph_i].p_filesz;
@@ -3330,6 +3338,7 @@ static int bpf_prog_load_djw(union bpf_attr *attr, bpfptr_t uattr)
 
 		if (phdr[ph_i].p_type != PT_LOAD){
 			vm_size[ph_i] = 0;
+			sec_off[ph_i] = 0;
 			continue;
 		}
 
@@ -3403,6 +3412,7 @@ static int bpf_prog_load_djw(union bpf_attr *attr, bpfptr_t uattr)
 			goto error_phdr;
 
 		vm_size[ph_i] = round_up(p_vaddr_end - p_vaddr_start, p_align);
+		sec_off[ph_i] = p_vaddr - p_vaddr_start;
 		total_vm += vm_size[ph_i];
 	}
 
@@ -3412,9 +3422,10 @@ static int bpf_prog_load_djw(union bpf_attr *attr, bpfptr_t uattr)
 	mem = __vmalloc(total_vm, GFP_KERNEL_ACCOUNT | __GFP_ZERO | GFP_USER);
 	if (!mem) {
 		err = -ENOMEM;
-		goto error_vm;
+		goto error_phdr;
 	}
 	prog->mem.mem = mem;
+	addr_start = (u64)mem;
 
 	for (ph_i = 0, offset = 0; ph_i < ehdr->e_phnum; ph_i++) {
 		Elf64_Xword p_filesz = phdr[ph_i].p_filesz;
@@ -3435,7 +3446,7 @@ static int bpf_prog_load_djw(union bpf_attr *attr, bpfptr_t uattr)
 		if (phdr[ph_i].p_flags & PF_X)
 			prot |= PROT_EXEC;
 		if ((prot & PROT_WRITE) && (prot & PROT_EXEC))
-			goto error_phdr;
+			goto error_vm;
 
 		readbuf = kmalloc(p_filesz, GFP_KERNEL);
 		if (!readbuf) {
@@ -3448,7 +3459,7 @@ static int bpf_prog_load_djw(union bpf_attr *attr, bpfptr_t uattr)
 			goto error_vm;
 		}
 
-		memcpy(mem + offset, readbuf, p_filesz);
+		memcpy(mem + offset + sec_off[ph_i], readbuf, p_filesz);
 		memset(mem + offset + p_filesz, 0, p_memsz - p_filesz);
 		
 		// Set correct permission
@@ -3479,6 +3490,8 @@ static int bpf_prog_load_djw(union bpf_attr *attr, bpfptr_t uattr)
 	prog->mem.total_page = total_page;
 	kfree(ehdr);
 	kfree(phdr);
+	kfree(vm_size);
+	kfree(sec_off);
 	fput(filp);
 
 	prog->bpf_func = (void *)(mem + e_entry);
@@ -3521,6 +3534,8 @@ error_vm:
 	vfree(mem);
 error_phdr:
 	kfree(phdr);
+	kfree(vm_size);
+	kfree(sec_off);
 error_ehdr:
 	kfree(ehdr);
 	fput(filp);
