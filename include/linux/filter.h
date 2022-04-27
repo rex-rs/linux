@@ -676,12 +676,6 @@ struct bpf_timed_may_goto {
 	u64 timestamp;
 };
 
-struct bpf_mem
-{
-	void *mem;
-	int total_page;
-};
-
 struct sk_filter {
 	refcount_t	refcnt;
 	struct rcu_head	rcu;
