@@ -41,6 +41,8 @@
 #include <net/netkit.h>
 #include <net/tcx.h>
 
+#include <asm-generic/mman-common.h>
+
 #include <linux/moduleloader.h>
 
 #define IS_FD_ARRAY(map) ((map)->map_type == BPF_MAP_TYPE_PERF_EVENT_ARRAY || \
@@ -3008,6 +3010,12 @@ put_token:
 	return err;
 }
 
+static unsigned int __iu_prog_empty(const void *ctx,
+		const struct bpf_insn *insn)
+{
+	return 0;
+}
+
 /*
  * Define EM_TARGET, EM_PAGE_SIZE and EI_DATA_TARGET for the architecture we
  * are compiling on.
@@ -3113,11 +3121,8 @@ static int elf_read(struct file *file, void *buf, size_t len, loff_t pos)
 	return 0;
 }
 
-#define BPF_PROG_LOAD_DJW  0x1234beef
-#include <linux/vmalloc.h>
-#include <asm-generic/mman-common.h>
 #define MAX_PROG_SZ (8192 << 2)
-static int bpf_prog_load_djw(union bpf_attr *attr, bpfptr_t uattr)
+static int bpf_prog_load_iu_base(union bpf_attr *attr, bpfptr_t uattr)
 {
 	enum bpf_prog_type type = attr->prog_type;
 	struct bpf_prog *prog, *dst_prog = NULL;
@@ -3496,7 +3501,7 @@ static int bpf_prog_load_djw(union bpf_attr *attr, bpfptr_t uattr)
 	kfree(sec_off);
 	fput(filp);
 
-	prog->bpf_func = (void *)(mem + e_entry);
+	prog->bpf_func = __iu_prog_empty;
 
 	if (attr->map_cnt) {
 		u64 map_offs[MAX_USED_MAPS];
@@ -6386,8 +6391,8 @@ static int __sys_bpf(enum bpf_cmd cmd, bpfptr_t uattr, unsigned int size)
 	case BPF_PROG_LOAD:
 		err = bpf_prog_load(&attr, uattr, size);
 		break;
-	case BPF_PROG_LOAD_DJW:
-		err = bpf_prog_load_djw(&attr, uattr);
+	case BPF_PROG_LOAD_IU_BASE:
+		err = bpf_prog_load_iu_base(&attr, uattr);
 		break;
 	case BPF_OBJ_PIN:
 		err = bpf_obj_pin(&attr);
