@@ -959,6 +959,7 @@ enum bpf_cmd {
 	BPF_PROG_BIND_MAP,
 	BPF_TOKEN_CREATE,
 	BPF_PROG_LOAD_IU_BASE,
+	BPF_PROG_LOAD_IU,
 	__MAX_BPF_CMD,
 };
 
@@ -1056,6 +1057,7 @@ enum bpf_prog_type {
 	BPF_PROG_TYPE_SK_LOOKUP,
 	BPF_PROG_TYPE_SYSCALL, /* a program that can execute syscalls */
 	BPF_PROG_TYPE_NETFILTER,
+	BPF_PROG_TYPE_IU_BASE,
 	__MAX_BPF_PROG_TYPE
 };
 
@@ -1562,10 +1564,17 @@ union bpf_attr {
 			__u32		attach_btf_obj_fd;
 		};
 		__u32		core_relo_cnt;	/* number of bpf_core_relo */
-		__u32		:32;		/* pad */
-		__u32		rustfd;		/* file descriptor of Rust Program */
-		__aligned_u64	map_offs;	/* offsets of map relocs */
-		__u32		map_cnt;	/* length map reloc array */
+		union {
+			struct {
+				__u32		rustfd;		/* file descriptor of Rust Program */
+				__aligned_u64	map_offs;	/* offsets of map relocs */
+				__u32		map_cnt;	/* length map reloc array */	
+			};
+			struct {
+				__u32		base_prog_fd; /* fd of the base prog */
+				__aligned_u64	prog_offset; /* offset of prog in base prog */
+			};
+		};
 		__u32		:32;		/* pad */
 		__aligned_u64	fd_array;	/* array of FDs */
 		__aligned_u64	core_relos;
