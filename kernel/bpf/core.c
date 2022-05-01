@@ -2816,7 +2816,7 @@ static void bpf_prog_free_deferred(struct work_struct *work)
 
 	if (aux->prog->no_bpf) {
 		BUG_ON(aux->func_cnt);
-		
+
 		if (aux->prog->base) {
 			bpf_prog_put(aux->prog->base);
 		} else {
