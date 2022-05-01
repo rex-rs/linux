@@ -3023,8 +3023,6 @@ static int bpf_prog_load_iu(union bpf_attr *attr, bpfptr_t uattr)
 	bool is_gpl;
 	struct bpf_prog *base;
 
-	printk("bpf_prog_load_iu");
-
 	if (CHECK_ATTR(BPF_PROG_LOAD))
 		return -EINVAL;
 
@@ -3147,7 +3145,7 @@ static int bpf_prog_load_iu(union bpf_attr *attr, bpfptr_t uattr)
 		goto free_prog_sec;
 
 	prog->no_bpf = 1;
-	
+
 	// This gets the refcnt
 	base = bpf_prog_get(attr->base_prog_fd);
 	if (IS_ERR(base)) {
@@ -3161,7 +3159,7 @@ static int bpf_prog_load_iu(union bpf_attr *attr, bpfptr_t uattr)
 	}
 
 	prog->bpf_func = (void *)((u64)base->mem.mem + attr->prog_offset);
-	
+
 	err = bpf_prog_alloc_id(prog);
 	if (err)
 		goto free_used_maps;
@@ -3340,10 +3338,8 @@ static int bpf_prog_load_iu_base(union bpf_attr *attr, bpfptr_t uattr)
 	int *vm_size = NULL, *sec_off = NULL;
 	int total_vm = 0, offset, total_page = 0;
 
-	printk("bpf_prog_load_iu_base: 1");
 	if (CHECK_ATTR(BPF_PROG_LOAD))
 		return -EINVAL;
-	printk("bpf_prog_load_iu_base: 2"); 
 	if (attr->prog_flags & ~(BPF_F_STRICT_ALIGNMENT |
 				 BPF_F_ANY_ALIGNMENT |
 				 BPF_F_TEST_STATE_FREQ |
@@ -3441,8 +3437,6 @@ static int bpf_prog_load_iu_base(union bpf_attr *attr, bpfptr_t uattr)
 	if (err)
 		goto free_prog;
 
-	printk("bpf_prog_load_iu_base: 3"); 
-
 	prog->aux->user = get_current_user();
 	prog->len = attr->insn_cnt;
 	err = -EFAULT;
@@ -3493,8 +3487,6 @@ static int bpf_prog_load_iu_base(union bpf_attr *attr, bpfptr_t uattr)
 	bpf_get_trace_printk_proto();
 
 	prog->no_bpf = 1;
-	
-	printk("bpf_prog_load_iu_base: 3.2");
 
 	filp = fget(attr->rustfd);
 	ehdr = kmalloc(sizeof(Elf64_Ehdr), GFP_KERNEL);
@@ -3504,20 +3496,14 @@ static int bpf_prog_load_iu_base(union bpf_attr *attr, bpfptr_t uattr)
 		goto free_prog_sec;
 	}
 
-	printk("bpf_prog_load_iu_base: 3.3");
-
 	err = elf_read(filp, ehdr, sizeof(Elf64_Ehdr), 0);
 	if (err)
 		goto error_ehdr;
-	
-	printk("bpf_prog_load_iu_base: 3.5");
 
 	if (!ehdr_is_valid(ehdr)) {
 		err = -EINVAL;
 		goto error_ehdr;
 	}
-
-	printk("bpf_prog_load_iu_base: 3.7");
 
 	e_entry = ehdr->e_entry;
 	ph_size = ehdr->e_phnum * ehdr->e_phentsize;
@@ -3537,8 +3523,6 @@ static int bpf_prog_load_iu_base(union bpf_attr *attr, bpfptr_t uattr)
 	err = elf_read(filp, phdr, ph_size, ehdr->e_phoff);
 	if (err)
 		goto error_phdr;
-
-	printk("bpf_prog_load_iu_base: 4");
 
 	/*
 	 * Load all program segments with the PT_LOAD directive.
@@ -3645,19 +3629,17 @@ static int bpf_prog_load_iu_base(union bpf_attr *attr, bpfptr_t uattr)
 	prog->mem.mem = mem;
 	addr_start = (u64)mem;
 
-	printk("bpf_prog_load_iu_base: 5");
-
 	for (ph_i = 0, offset = 0; ph_i < ehdr->e_phnum; ph_i++) {
 		Elf64_Xword p_filesz = phdr[ph_i].p_filesz;
 		Elf64_Xword p_memsz = phdr[ph_i].p_memsz;
-		
+
 		int prot;
 		void *readbuf;
 		int page_cnt;
 
 		if (phdr[ph_i].p_type != PT_LOAD)
 			continue;
-		
+
 		prot = PROT_NONE;
 		if (phdr[ph_i].p_flags & PF_R)
 			prot |= PROT_READ;
@@ -3681,7 +3663,7 @@ static int bpf_prog_load_iu_base(union bpf_attr *attr, bpfptr_t uattr)
 
 		memcpy(mem + offset + sec_off[ph_i], readbuf, p_filesz);
 		memset(mem + offset + p_filesz, 0, p_memsz - p_filesz);
-		
+
 		// Set correct permission
 		page_cnt = (vm_size[ph_i] >> PAGE_SHIFT);
 
@@ -3722,21 +3704,21 @@ static int bpf_prog_load_iu_base(union bpf_attr *attr, bpfptr_t uattr)
 		int idx;
 
 		if (attr->map_cnt >= MAX_USED_MAPS) {
-			printk("attr->iu_maps_len >= MAX_USED_MAPS\n");
+			//printk("attr->iu_maps_len >= MAX_USED_MAPS\n");
 			err = -EINVAL;
 			goto free_used_maps;
 		}
 
 		if (copy_from_bpfptr(map_offs, USER_BPFPTR((void *)(attr->map_offs)),
 							 sizeof(u64) * attr->map_cnt) != 0) {
-			printk("copy_from_bpfptr() != 0\n");
+			//printk("copy_from_bpfptr() != 0\n");
 			err = -EFAULT;
 			goto free_used_maps;
 		}
 
 		used_maps = kmalloc(sizeof(*used_maps) * attr->map_cnt, GFP_KERNEL);
 		if (!used_maps) {
-			printk("!used_maps\n");
+			//printk("!used_maps\n");
 			err = -ENOMEM;
 			goto free_used_maps;
 		}
@@ -3744,8 +3726,8 @@ static int bpf_prog_load_iu_base(union bpf_attr *attr, bpfptr_t uattr)
 		for (idx = 0; idx < attr->map_cnt; idx++) {
 			u64 *map_addr = (u64 *)(addr_start + map_offs[idx]);
 			struct bpf_map *curr = bpf_map_get(*map_addr);
-			printk("map offset = 0x%lx\n", map_offs[idx]);
-			printk("map addr = 0x%lx\n", *map_addr);
+			//printk("map offset = 0x%lx\n", map_offs[idx]);
+			//printk("map addr = 0x%lx\n", *map_addr);
 
 			if (IS_ERR(curr)) {
 				kfree(used_maps);
