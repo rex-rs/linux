@@ -3704,21 +3704,21 @@ static int bpf_prog_load_iu_base(union bpf_attr *attr, bpfptr_t uattr)
 		int idx;
 
 		if (attr->map_cnt >= MAX_USED_MAPS) {
-			//printk("attr->iu_maps_len >= MAX_USED_MAPS\n");
+			printk("attr->iu_maps_len >= MAX_USED_MAPS\n");
 			err = -EINVAL;
 			goto free_used_maps;
 		}
 
 		if (copy_from_bpfptr(map_offs, USER_BPFPTR((void *)(attr->map_offs)),
 							 sizeof(u64) * attr->map_cnt) != 0) {
-			//printk("copy_from_bpfptr() != 0\n");
+			printk("copy_from_bpfptr() != 0\n");
 			err = -EFAULT;
 			goto free_used_maps;
 		}
 
 		used_maps = kmalloc(sizeof(*used_maps) * attr->map_cnt, GFP_KERNEL);
 		if (!used_maps) {
-			//printk("!used_maps\n");
+			printk("!used_maps\n");
 			err = -ENOMEM;
 			goto free_used_maps;
 		}
@@ -3726,8 +3726,8 @@ static int bpf_prog_load_iu_base(union bpf_attr *attr, bpfptr_t uattr)
 		for (idx = 0; idx < attr->map_cnt; idx++) {
 			u64 *map_addr = (u64 *)(addr_start + map_offs[idx]);
 			struct bpf_map *curr = bpf_map_get(*map_addr);
-			//printk("map offset = 0x%lx\n", map_offs[idx]);
-			//printk("map addr = 0x%lx\n", *map_addr);
+			printk("map offset = 0x%lx\n", map_offs[idx]);
+			printk("map addr = 0x%lx\n", *map_addr);
 
 			if (IS_ERR(curr)) {
 				kfree(used_maps);
@@ -3740,6 +3740,26 @@ static int bpf_prog_load_iu_base(union bpf_attr *attr, bpfptr_t uattr)
 		}
 		prog->aux->used_maps = used_maps;
 		prog->aux->used_map_cnt = attr->map_cnt;
+	}
+
+	if (attr->got_size) {
+		u64 got_nr_syms;
+		u64 *got;
+		int i = 0;
+
+		if (attr->got_size & 0x7) {
+			err = -EINVAL;
+			goto free_used_maps;
+		}
+
+		got_nr_syms = attr->got_size >> 3;
+		got = (u64 *)(addr_start + attr->got_off);
+
+		for (i = 0; i < got_nr_syms; i++) {
+			printk("got[%d] = 0x%lx\n", i, got[i]);
+			got[i] += addr_start;
+			printk("got[%d] = 0x%lx\n", i, got[i]);
+		}
 	}
 
 	err = bpf_prog_alloc_id(prog);
