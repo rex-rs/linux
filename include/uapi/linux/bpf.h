@@ -1568,6 +1568,8 @@ union bpf_attr {
 			struct {
 				__u32		rustfd;		/* file descriptor of Rust Program */
 				__aligned_u64	map_offs;	/* offsets of map relocs */
+				__aligned_u64	got_off; /* offset of GOT section */
+				__aligned_u64	got_size; /* size of GOT section in bytes */
 				__u32		map_cnt;	/* length map reloc array */	
 			};
 			struct {
