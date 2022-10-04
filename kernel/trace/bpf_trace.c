@@ -392,6 +392,43 @@ static const struct bpf_func_proto bpf_trace_printk_proto = {
 	.arg2_type	= ARG_CONST_SIZE,
 };
 
+static DEFINE_RAW_SPINLOCK(trace_printk_lock);
+static char buf[BPF_TRACE_PRINTK_SIZE];
+
+// proto not needed since it does not go through the verifier
+BPF_CALL_5(bpf_trace_printk_iu, char *, fmt, u32, fmt_size, u64, arg1,
+		u64, arg2, u64, arg3)
+{
+	u64 args[MAX_TRACE_PRINTK_VARARGS] = { arg1, arg2, arg3 };
+	static char prep[BPF_TRACE_PRINTK_SIZE];
+	u32 *bin_args;
+	unsigned long flags;
+	int ret;
+
+	raw_spin_lock_irqsave(&trace_printk_lock, flags);
+
+	// Assume Rust program sends exactly the &str length
+	if (fmt_size >= BPF_TRACE_PRINTK_SIZE)
+		return -EINVAL;
+
+	memcpy(prep, fmt, fmt_size);
+	prep[fmt_size] = '\0';
+
+	ret = bpf_bprintf_prepare(prep, fmt_size + 1, args, &bin_args,
+			MAX_TRACE_PRINTK_VARARGS);
+	if (ret < 0)
+		return ret;
+
+	ret = bstr_printf(buf, sizeof(buf), prep, bin_args);
+
+	trace_bpf_trace_printk(buf);
+	raw_spin_unlock_irqrestore(&trace_printk_lock, flags);
+
+	bpf_bprintf_cleanup();
+
+	return ret;
+}
+
 static void __set_printk_clr_event(void)
 {
 	/*
