@@ -3762,6 +3762,47 @@ static int bpf_prog_load_iu_base(union bpf_attr *attr, bpfptr_t uattr)
 		}
 	}
 
+	if (attr->nr_dyn_relas) {
+		int i = 0;
+		u64 relas_size = sizeof(struct iu_rela_dyn) * attr->nr_dyn_relas;
+		struct iu_rela_dyn *relas = kmalloc(relas_size, GFP_KERNEL);
+
+		if (copy_from_bpfptr(relas,
+							 make_bpfptr(attr->dyn_relas, uattr.is_kernel),
+							 relas_size) != 0) {
+			err = -EFAULT;
+			kfree(relas);
+			goto free_used_maps;
+		}
+
+		for (i = 0; i < attr->nr_dyn_relas; i++) {
+			u64 *abs_addr;
+			err = -EINVAL;
+
+			if (relas[i].type != R_X86_64_RELATIVE) {
+				kfree(relas);
+				goto free_used_maps;
+			}
+
+			printk("relas[%d]: addr=0x%lx, value=0x%lx\n", i, relas[i].addr,
+					relas[i].value);
+			abs_addr = (u64 *)(addr_start + relas[i].addr);
+			printk("Original value at addr 0x%lx is 0x%lx\n", relas[i].addr,
+					*abs_addr);
+			if (*abs_addr != relas[i].value) {
+				kfree(relas);
+				goto free_used_maps;
+			}
+
+			*abs_addr += addr_start;
+
+			printk("Updated value at addr 0x%lx is 0x%lx\n", relas[i].addr,
+					*abs_addr);
+		}
+
+		kfree(relas);
+	}
+
 	err = bpf_prog_alloc_id(prog);
 	if (err)
 		goto free_used_maps;
