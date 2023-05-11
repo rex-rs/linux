@@ -3106,3 +3106,14 @@ EXPORT_SYMBOL(bpf_stats_enabled_key);
 
 EXPORT_TRACEPOINT_SYMBOL_GPL(xdp_exception);
 EXPORT_TRACEPOINT_SYMBOL_GPL(xdp_bulk_tx);
+
+struct iu_cleanup_entry {
+	u64 valid;
+	void *cleanup_fn;
+	void *cleanup_arg;
+};
+
+#define IU_CLEANUP_ENTRIES_SIZE 64
+
+DEFINE_PER_CPU(struct iu_cleanup_entry[64], iu_cleanup_entries) ____cacheline_aligned = { 0 };
+
