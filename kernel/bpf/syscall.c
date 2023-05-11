@@ -3315,7 +3315,7 @@ static int elf_read(struct file *file, void *buf, size_t len, loff_t pos)
 	return 0;
 }
 
-#define MAX_PROG_SZ (8192 << 2)
+#define MAX_PROG_SZ (8192 << 4)
 static int bpf_prog_load_iu_base(union bpf_attr *attr, bpfptr_t uattr)
 {
 	enum bpf_prog_type type = attr->prog_type;
