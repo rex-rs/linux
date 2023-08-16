@@ -8,3 +8,6 @@ ifeq ($(CONFIG_X86_32),y)
 else
         obj-$(CONFIG_BPF_JIT) += bpf_jit_comp.o
 endif
+
+obj-y += iu_unwind.o
+obj-y += iu_unwind_$(BITS).o
