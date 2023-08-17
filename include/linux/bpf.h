@@ -1325,6 +1325,12 @@ const void *__bpf_dynptr_data(const struct bpf_dynptr_kern *ptr, u32 len);
 void *__bpf_dynptr_data_rw(const struct bpf_dynptr_kern *ptr, u32 len);
 bool __bpf_dynptr_is_rdonly(const struct bpf_dynptr_kern *ptr);
 
+extern asmlinkage unsigned int iu_dispatcher_func(
+	const void *ctx,
+	const struct bpf_insn *insnsi,
+	unsigned int (*bpf_func)(const void *,
+				 const struct bpf_insn *));
+
 #ifdef CONFIG_BPF_JIT
 int bpf_trampoline_link_prog(struct bpf_tramp_link *link,
 			     struct bpf_trampoline *tr,
