@@ -9,6 +9,13 @@
 
 /* Dispatcher func for inner-unikernel */
 SYM_FUNC_START(iu_dispatcher_func)
+	/* save the callee-saved registers */
+  pushq %rbx
+  pushq %r12
+  pushq %r13
+  pushq %r14
+  pushq %r15
+
 	/* save rsp and rbp */
 	movq %rsp, PER_CPU_VAR(iu_sp)
 	movq %rbp, PER_CPU_VAR(iu_fp)
@@ -17,7 +24,15 @@ SYM_FUNC_START(iu_dispatcher_func)
 	call *%rdx
 
 /* Exit path */
-SYM_INNER_LABEL(iu_exit, SYM_L_LOCAL)
+iu_exit:
+  /* restore the callee-saved registers */
+  popq %r15
+  popq %r14
+  popq %r13
+  popq %r12
+  popq %rbx
+
+  /* Return */
 	RET
 
 /* Rust panic path */
