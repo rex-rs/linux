@@ -11,7 +11,7 @@
 #include <asm/pgtable.h>
 
 
-#define IU_STACK_ORDER 3
+#define IU_STACK_ORDER 2
 #define IU_STACK_SIZE (PAGE_SIZE << IU_STACK_ORDER)
 
 struct iu_stack {
@@ -59,8 +59,8 @@ static int __init init_iu_stack(void)
 
 module_init(init_iu_stack);
 
-DEFINE_PER_CPU(unsigned long, iu_sp);
-DEFINE_PER_CPU(unsigned long, iu_fp);
+DEFINE_PER_CPU(unsigned long, iu_old_sp);
+DEFINE_PER_CPU(unsigned long, iu_old_fp);
 
 
 __nocfi noinline void notrace __noreturn iu_landingpad(char *msg)
