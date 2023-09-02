@@ -501,6 +501,7 @@ PROVIDE(__ref_stack_chk_guard = __stack_chk_guard);
 INIT_PER_CPU(gdt_page);
 INIT_PER_CPU(fixed_percpu_data);
 INIT_PER_CPU(irq_stack_backing_store);
+INIT_PER_CPU(iu_stack_backing_store);
 
 #ifdef CONFIG_SMP
 . = ASSERT((fixed_percpu_data == 0),
