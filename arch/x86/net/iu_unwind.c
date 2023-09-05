@@ -10,7 +10,6 @@
 #include <asm/page.h>
 #include <asm/pgtable.h>
 
-
 /* 
  * Usable stack is 8k large. 2 extra pages are needed for panic handlers
  * under extreme cases. Therefore, the actual vmap area per CPU is 5 pages
@@ -47,8 +46,8 @@ static int map_iu_stack(unsigned int cpu)
 	/* Store actual TOS to avoid adjustment in the hotpath */
 	per_cpu(iu_stack_ptr, cpu) = va + IU_STACK_SIZE;
 
-  printk("Initialize iu_stack on CPU %d at 0x%llx\n", cpu,
-         ((u64)va) + IU_STACK_SIZE);
+	printk("Initialize iu_stack on CPU %d at 0x%llx\n", cpu,
+	       ((u64)va) + IU_STACK_SIZE);
 
 	return 0;
 }
@@ -56,7 +55,7 @@ static int map_iu_stack(unsigned int cpu)
 static int __init init_iu_stack(void)
 {
 	int i, ret = 0;
-	for_each_online_cpu(i) {
+	for_each_online_cpu (i) {
 		ret = map_iu_stack(i);
 		if (ret < 0)
 			break;
@@ -69,17 +68,13 @@ module_init(init_iu_stack);
 DEFINE_PER_CPU(unsigned long, iu_old_sp);
 DEFINE_PER_CPU(unsigned long, iu_old_fp);
 
-
 __nocfi noinline void notrace __noreturn iu_landingpad(char *msg)
 {
 	/* Report error */
-	pr_warn("Panic from inner-unikernel prog: %s\n", msg);
-	dump_stack();
+	WARN(true, "Panic from inner-unikernel prog: %s\n", msg);
 
 	/* Jump to trampoline */
-	asm volatile(
-		"jmp iu_panic_trampoline"
-	);
+	asm volatile("jmp iu_panic_trampoline");
 
 	/* Unreachable, noreturn */
 	BUG();
