@@ -3772,9 +3772,9 @@ static int bpf_prog_load_iu_base(union bpf_attr *attr, bpfptr_t uattr)
 		got = (u64 *)(addr_start + attr->got_off);
 
 		for (i = 0; i < got_nr_syms; i++) {
-			printk("got[%d] = 0x%lx\n", i, got[i]);
+			printk("got[%d] = 0x%llx\n", i, got[i]);
 			got[i] += addr_start;
-			printk("got[%d] = 0x%lx\n", i, got[i]);
+			printk("got[%d] = 0x%llx\n", i, got[i]);
 		}
 	}
 
@@ -3800,10 +3800,10 @@ static int bpf_prog_load_iu_base(union bpf_attr *attr, bpfptr_t uattr)
 				goto free_used_maps;
 			}
 
-			printk("relas[%d]: addr=0x%lx, value=0x%lx\n", i, relas[i].addr,
+			printk("relas[%d]: addr=0x%llx, value=0x%llx\n", i, relas[i].addr,
 					relas[i].value);
 			abs_addr = (u64 *)(addr_start + relas[i].addr);
-			printk("Original value at addr 0x%lx is 0x%lx\n", relas[i].addr,
+			printk("Original value at addr 0x%lx is 0x%llx\n", relas[i].addr,
 					*abs_addr);
 			if (*abs_addr != relas[i].value) {
 				kfree(relas);
@@ -3812,7 +3812,7 @@ static int bpf_prog_load_iu_base(union bpf_attr *attr, bpfptr_t uattr)
 
 			*abs_addr += addr_start;
 
-			printk("Updated value at addr 0x%lx is 0x%lx\n", relas[i].addr,
+			printk("Updated value at addr 0x%lx is 0x%llx\n", relas[i].addr,
 					*abs_addr);
 		}
 
