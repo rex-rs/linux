@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /* Copyright (c) 2011-2014 PLUMgrid, http://plumgrid.com
  */
+#include "asm-generic/set_memory.h"
 #include <linux/bpf.h>
 #include <linux/bpf-cgroup.h>
 #include <linux/bpf_trace.h>
@@ -3726,8 +3727,17 @@ static int bpf_prog_load_iu_base(union bpf_attr *attr, bpfptr_t uattr)
 		for (idx = 0; idx < attr->map_cnt; idx++) {
 			u64 *map_addr = (u64 *)(addr_start + map_offs[idx]);
 			struct bpf_map *curr = bpf_map_get(*map_addr);
-			printk("map offset = 0x%lx\n", map_offs[idx]);
-			printk("map addr = 0x%lx\n", *map_addr);
+			unsigned int level;
+			pte_t *pte = lookup_address((unsigned long)map_addr, &level);
+			bool is_ro = !pte_write(*pte);
+			unsigned long start = (unsigned long)map_addr & PAGE_MASK;
+			unsigned long end = ((unsigned long)map_addr + sizeof(curr)) &
+				PAGE_MASK;
+			int nr_pages = start == end ? 1 : 2;
+
+			printk("map offset = 0x%llx\n", map_offs[idx]);
+			printk("map virt addr = 0x%llx\n", (u64)map_addr);
+			printk("map fd = %llu\n", *map_addr);
 
 			if (IS_ERR(curr)) {
 				kfree(used_maps);
@@ -3736,7 +3746,13 @@ static int bpf_prog_load_iu_base(union bpf_attr *attr, bpfptr_t uattr)
 			}
 
 			used_maps[idx] = curr;
+
+			// Maps might (or will always?) be in .data, which is read-only
+			if (is_ro)
+				set_memory_rw(start, nr_pages);
 			*map_addr = (u64)curr;
+			if (is_ro)
+				set_memory_ro(start, nr_pages);
 		}
 		prog->aux->used_maps = used_maps;
 		prog->aux->used_map_cnt = attr->map_cnt;
