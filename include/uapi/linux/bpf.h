@@ -1489,9 +1489,9 @@ enum {
 };
 
 struct iu_rela_dyn {
-	__u64	addr;
-	__u64	type;
-	__u64	value;
+	__u64	offset;
+	__u64	info;
+	__u64	addend;
 };
 
 union bpf_attr {
