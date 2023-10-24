@@ -1578,8 +1578,6 @@ union bpf_attr {
 		union {
 			struct {
 				__aligned_u64	map_offs;	/* offsets of map relocs */
-				__aligned_u64	got_off;	/* offset of GOT section */
-				__aligned_u64	got_size;	/* size of GOT section in bytes */
 				__aligned_u64	dyn_relas;	/* ptr to dynamic rela info */
 				__aligned_u64	nr_dyn_relas;	/* nr of dyn rela entries */
 				__aligned_u64	dyn_syms; /* ptr to dyn sym entries */
