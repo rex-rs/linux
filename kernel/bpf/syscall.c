@@ -3316,6 +3316,115 @@ static int elf_read(struct file *file, void *buf, size_t len, loff_t pos)
 	return 0;
 }
 
+static int iu_parse_maps(union bpf_attr *attr, struct bpf_prog *prog,
+	u64 addr_start)
+{
+	u64 map_offs[MAX_USED_MAPS];
+	struct bpf_map **used_maps;
+	int idx, ret = 0;
+
+	if (attr->map_cnt >= MAX_USED_MAPS) {
+		printk("attr->iu_maps_len >= MAX_USED_MAPS\n");
+		return -EINVAL;
+	}
+
+	if (copy_from_bpfptr(map_offs, USER_BPFPTR((void *)(attr->map_offs)),
+							sizeof(u64) * attr->map_cnt) != 0) {
+		printk("copy_from_bpfptr() != 0\n");
+		return -EFAULT;
+	}
+
+	used_maps = kmalloc(sizeof(*used_maps) * attr->map_cnt, GFP_KERNEL);
+	if (!used_maps) {
+		printk("!used_maps\n");
+		return -ENOMEM;
+	}
+
+	for (idx = 0; idx < attr->map_cnt; idx++) {
+		u64 *map_addr = (u64 *)(addr_start + map_offs[idx]);
+		struct bpf_map *curr = bpf_map_get(*map_addr);
+		unsigned int level;
+		pte_t *pte = lookup_address((unsigned long)map_addr, &level);
+		bool is_ro = !pte_write(*pte);
+		unsigned long start = (unsigned long)map_addr & PAGE_MASK;
+		unsigned long end = ((unsigned long)map_addr + sizeof(curr)) &
+			PAGE_MASK;
+		int nr_pages = start == end ? 1 : 2;
+
+		printk("map offset = 0x%llx\n", map_offs[idx]);
+		printk("map virt addr = 0x%llx\n", (u64)map_addr);
+		printk("map fd = %llu\n", *map_addr);
+
+		if (IS_ERR(curr)) {
+			ret = PTR_ERR(curr);
+			goto free_used_maps;
+		}
+
+		used_maps[idx] = curr;
+
+		// Maps might (or will always?) be in .data, which is read-only
+		if (is_ro)
+			set_memory_rw(start, nr_pages);
+		*map_addr = (u64)curr;
+		if (is_ro)
+			set_memory_ro(start, nr_pages);
+	}
+	prog->aux->used_maps = used_maps;
+	prog->aux->used_map_cnt = attr->map_cnt;
+
+	return 0;
+
+free_used_maps:
+	kfree(used_maps);
+	return ret;
+}
+
+static int iu_parse_relas(union bpf_attr *attr, u64 addr_start)
+{
+	int i = 0;
+	int ret = 0;
+	u64 relas_size = attr->nr_dyn_relas * sizeof(struct iu_rela_dyn);
+	struct iu_rela_dyn *relas = kmalloc_array(attr->nr_dyn_relas,
+		sizeof(*relas), GFP_KERNEL);
+
+	if (!relas)
+		return -ENOMEM;
+
+	if (copy_from_bpfptr(relas, USER_BPFPTR((void *)(attr->dyn_relas)),
+			relas_size) != 0) {
+		ret = -EFAULT;
+		goto free_relas;
+	}
+
+	for (i = 0; i < attr->nr_dyn_relas; i++) {
+		u64 *abs_addr;
+
+		if (ELF64_R_TYPE(relas[i].info) != R_X86_64_RELATIVE) {
+			ret = -EINVAL;
+			goto free_relas;
+		}
+
+		printk("relas[%d]: addr=0x%llx, value=0x%llx\n", i, relas[i].offset,
+				relas[i].addend);
+		abs_addr = (u64 *)(addr_start + relas[i].offset);
+		printk("Original value at addr 0x%llx is 0x%llx\n", relas[i].offset,
+				*abs_addr);
+		if (*abs_addr != relas[i].addend) {
+			ret = -EINVAL;
+			goto free_relas;
+		}
+
+		*abs_addr += addr_start;
+
+		printk("Updated value at addr 0x%llx is 0x%llx\n", relas[i].offset,
+				*abs_addr);
+	}
+
+free_relas:
+	kfree(relas);
+	return ret;
+}
+
 #define MAX_PROG_SZ (8192 << 4)
 static int bpf_prog_load_iu_base(union bpf_attr *attr, bpfptr_t uattr)
 {
@@ -3700,123 +3809,15 @@ static int bpf_prog_load_iu_base(union bpf_attr *attr, bpfptr_t uattr)
 	prog->bpf_func = __iu_prog_empty;
 
 	if (attr->map_cnt) {
-		u64 map_offs[MAX_USED_MAPS];
-		struct bpf_map **used_maps;
-		int idx;
-
-		if (attr->map_cnt >= MAX_USED_MAPS) {
-			printk("attr->iu_maps_len >= MAX_USED_MAPS\n");
-			err = -EINVAL;
+		err = iu_parse_maps(attr, prog, addr_start);
+		if (err)
 			goto free_used_maps;
-		}
-
-		if (copy_from_bpfptr(map_offs, USER_BPFPTR((void *)(attr->map_offs)),
-							 sizeof(u64) * attr->map_cnt) != 0) {
-			printk("copy_from_bpfptr() != 0\n");
-			err = -EFAULT;
-			goto free_used_maps;
-		}
-
-		used_maps = kmalloc(sizeof(*used_maps) * attr->map_cnt, GFP_KERNEL);
-		if (!used_maps) {
-			printk("!used_maps\n");
-			err = -ENOMEM;
-			goto free_used_maps;
-		}
-
-		for (idx = 0; idx < attr->map_cnt; idx++) {
-			u64 *map_addr = (u64 *)(addr_start + map_offs[idx]);
-			struct bpf_map *curr = bpf_map_get(*map_addr);
-			unsigned int level;
-			pte_t *pte = lookup_address((unsigned long)map_addr, &level);
-			bool is_ro = !pte_write(*pte);
-			unsigned long start = (unsigned long)map_addr & PAGE_MASK;
-			unsigned long end = ((unsigned long)map_addr + sizeof(curr)) &
-				PAGE_MASK;
-			int nr_pages = start == end ? 1 : 2;
-
-			printk("map offset = 0x%llx\n", map_offs[idx]);
-			printk("map virt addr = 0x%llx\n", (u64)map_addr);
-			printk("map fd = %llu\n", *map_addr);
-
-			if (IS_ERR(curr)) {
-				kfree(used_maps);
-				err = PTR_ERR(curr);
-				goto free_used_maps;
-			}
-
-			used_maps[idx] = curr;
-
-			// Maps might (or will always?) be in .data, which is read-only
-			if (is_ro)
-				set_memory_rw(start, nr_pages);
-			*map_addr = (u64)curr;
-			if (is_ro)
-				set_memory_ro(start, nr_pages);
-		}
-		prog->aux->used_maps = used_maps;
-		prog->aux->used_map_cnt = attr->map_cnt;
-	}
-
-	if (attr->got_size) {
-		u64 got_nr_syms;
-		u64 *got;
-		int i = 0;
-
-		if (attr->got_size & 0x7) {
-			err = -EINVAL;
-			goto free_used_maps;
-		}
-
-		got_nr_syms = attr->got_size >> 3;
-		got = (u64 *)(addr_start + attr->got_off);
-
-		for (i = 0; i < got_nr_syms; i++) {
-			printk("got[%d] = 0x%llx\n", i, got[i]);
-			got[i] += addr_start;
-			printk("got[%d] = 0x%llx\n", i, got[i]);
-		}
 	}
 
 	if (attr->nr_dyn_relas) {
-		int i = 0;
-		u64 relas_size = sizeof(struct iu_rela_dyn) * attr->nr_dyn_relas;
-		struct iu_rela_dyn *relas = kmalloc(relas_size, GFP_KERNEL);
-
-		if (copy_from_bpfptr(relas,
-							 make_bpfptr(attr->dyn_relas, uattr.is_kernel),
-							 relas_size) != 0) {
-			err = -EFAULT;
-			kfree(relas);
+		err = iu_parse_relas(attr, addr_start);
+		if (err)
 			goto free_used_maps;
-		}
-
-		for (i = 0; i < attr->nr_dyn_relas; i++) {
-			u64 *abs_addr;
-			err = -EINVAL;
-
-			if (relas[i].type != R_X86_64_RELATIVE) {
-				kfree(relas);
-				goto free_used_maps;
-			}
-
-			printk("relas[%d]: addr=0x%llx, value=0x%llx\n", i, relas[i].addr,
-					relas[i].value);
-			abs_addr = (u64 *)(addr_start + relas[i].addr);
-			printk("Original value at addr 0x%lx is 0x%llx\n", relas[i].addr,
-					*abs_addr);
-			if (*abs_addr != relas[i].value) {
-				kfree(relas);
-				goto free_used_maps;
-			}
-
-			*abs_addr += addr_start;
-
-			printk("Updated value at addr 0x%lx is 0x%llx\n", relas[i].addr,
-					*abs_addr);
-		}
-
-		kfree(relas);
 	}
 
 	err = bpf_prog_alloc_id(prog);
