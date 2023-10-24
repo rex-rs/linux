@@ -3425,6 +3425,62 @@ free_relas:
 	return ret;
 }
 
+static int iu_parse_dyn_syms(union bpf_attr *attr, u64 addr_start)
+{
+	int i = 0, ret = 0;
+	u64 syms_size = attr->nr_dyn_syms * sizeof(struct iu_dyn_sym);
+	struct iu_dyn_sym *syms = kmalloc_array(attr->nr_dyn_syms,
+		sizeof(*syms), GFP_KERNEL);
+	char *name = NULL;
+
+	if (!syms)
+		return -ENOMEM;
+
+	name = kmalloc(KSYM_NAME_LEN, GFP_KERNEL);
+	if (!name) {
+		ret = -ENOMEM;
+		goto free_syms;
+	}
+
+	if (copy_from_bpfptr(syms, USER_BPFPTR((void *)attr->dyn_syms),
+			syms_size) != 0) {
+		ret = -EFAULT;
+		goto free_name;
+	}
+
+	for (i = 0; i < attr->nr_dyn_syms; i++) {
+		u64 *abs_addr = (u64 *)(addr_start + syms[i].offset);
+		u64 sym_addr;
+
+		memset(name, 0, KSYM_NAME_LEN);
+		ret = strncpy_from_user(name, (const char __user *) syms[i].symbol,
+			KSYM_NAME_LEN);
+		if (ret == KSYM_NAME_LEN)
+			ret = -E2BIG;
+		if (ret < 0)
+			goto free_name;
+
+		printk("Addr 0x%llx, %s\n", abs_addr, name);
+
+		sym_addr = kallsyms_lookup_name(name);
+		if (!sym_addr) {
+			ret = -EINVAL;
+			goto free_name;
+		}
+
+		*abs_addr = sym_addr;
+		printk("Addr 0x%llx updated to 0x%llx\n", abs_addr, sym_addr);
+	}
+
+	ret = 0;
+
+free_name:
+	kfree(name);
+free_syms:
+	kfree(syms);
+	return ret;
+}
+
 #define MAX_PROG_SZ (8192 << 4)
 static int bpf_prog_load_iu_base(union bpf_attr *attr, bpfptr_t uattr)
 {
@@ -3816,6 +3872,12 @@ static int bpf_prog_load_iu_base(union bpf_attr *attr, bpfptr_t uattr)
 
 	if (attr->nr_dyn_relas) {
 		err = iu_parse_relas(attr, addr_start);
+		if (err)
+			goto free_used_maps;
+	}
+
+	if (attr->nr_dyn_syms) {
+		err = iu_parse_dyn_syms(attr, addr_start);
 		if (err)
 			goto free_used_maps;
 	}
