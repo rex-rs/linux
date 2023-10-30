@@ -31,6 +31,8 @@
 #include <linux/memcontrol.h>
 #include <linux/cfi.h>
 
+#include <asm/iu_unwind.h>
+
 struct bpf_verifier_env;
 struct bpf_verifier_log;
 struct perf_event;
@@ -1324,12 +1326,6 @@ u32 __bpf_dynptr_size(const struct bpf_dynptr_kern *ptr);
 const void *__bpf_dynptr_data(const struct bpf_dynptr_kern *ptr, u32 len);
 void *__bpf_dynptr_data_rw(const struct bpf_dynptr_kern *ptr, u32 len);
 bool __bpf_dynptr_is_rdonly(const struct bpf_dynptr_kern *ptr);
-
-extern asmlinkage unsigned int iu_dispatcher_func(
-	const void *ctx,
-	const struct bpf_insn *insnsi,
-	unsigned int (*bpf_func)(const void *,
-				 const struct bpf_insn *));
 
 #ifdef CONFIG_BPF_JIT
 int bpf_trampoline_link_prog(struct bpf_tramp_link *link,
