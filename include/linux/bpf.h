@@ -33,6 +33,8 @@
 #include <linux/cfi.h>
 #include <asm/rqspinlock.h>
 
+#include <asm/iu_unwind.h>
+
 struct bpf_verifier_env;
 struct bpf_verifier_log;
 struct perf_event;
@@ -1430,12 +1432,6 @@ static inline int bpf_dynptr_check_off_len(const struct bpf_dynptr_kern *ptr, u6
 
 	return 0;
 }
-
-extern asmlinkage unsigned int iu_dispatcher_func(
-	const void *ctx,
-	const struct bpf_insn *insnsi,
-	unsigned int (*bpf_func)(const void *,
-				 const struct bpf_insn *));
 
 #ifdef CONFIG_BPF_JIT
 int bpf_trampoline_link_prog(struct bpf_tramp_link *link,
