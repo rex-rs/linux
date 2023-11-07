@@ -28,8 +28,8 @@ SYM_FUNC_START(iu_dispatcher_func)
 	/* invoke bpf func */
 	call *%rdx
 
-/* Exit path */
-iu_exit:
+/* Exit path: iu_landingpad also redirects the control flow here */
+SYM_INNER_LABEL(iu_exit, SYM_L_GLOBAL)
 	/* reset rsp and rbp based on saved value */
 	movq PER_CPU_VAR(iu_old_sp), %rsp
 	movq PER_CPU_VAR(iu_old_fp), %rbp
@@ -43,14 +43,6 @@ iu_exit:
 
 	/* Return */
 	RET
-
-/* Rust panic path */
-SYM_INNER_LABEL(iu_panic_trampoline, SYM_L_GLOBAL)
-	/* Give a EINVAL as return value */
-	movq $(-EINVAL), %rax
-
-	/* Exit */
-	jmp iu_exit
 
 SYM_FUNC_END(iu_dispatcher_func)
 EXPORT_SYMBOL(iu_dispatcher_func)
