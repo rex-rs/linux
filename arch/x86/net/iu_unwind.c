@@ -10,7 +10,7 @@
 #include <asm/page.h>
 #include <asm/pgtable.h>
 
-/* 
+/*
  * Usable stack is 8k large. 2 extra pages are needed for panic handlers
  * under extreme cases. Therefore, the actual vmap area per CPU is 5 pages
  * (20KB)
@@ -73,8 +73,12 @@ __nocfi noinline void notrace __noreturn iu_landingpad(char *msg)
 	/* Report error */
 	WARN(true, "Panic from inner-unikernel prog: %s\n", msg);
 
-	/* Jump to trampoline */
-	asm volatile("jmp iu_panic_trampoline");
+	/* Set an return value of 0 and jump to trampoline */
+	asm volatile(
+		"movq $0,%%rax\n\t"
+		"jmp iu_exit\n\t"
+		: : :"rax"
+	);
 
 	/* Unreachable, noreturn */
 	BUG();
