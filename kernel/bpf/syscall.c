@@ -3154,16 +3154,18 @@ static int bpf_prog_load_iu(union bpf_attr *attr, bpfptr_t uattr)
 		goto free_used_maps;
 	}
 
+	prog->base = base;
+
 	if (attr->prog_offset >= base->mem.total_page << PAGE_SHIFT) {
 		err = -EINVAL;
-		goto free_used_maps;
+		goto free_base;
 	}
 
 	prog->bpf_func = (void *)((u64)base->mem.mem + attr->prog_offset);
 
 	err = bpf_prog_alloc_id(prog);
 	if (err)
-		goto free_used_maps;
+		goto free_base;
 
 	/* Upon success of bpf_prog_alloc_id(), the BPF prog is
 	 * effectively publicly exposed. However, retrieving via
@@ -3188,6 +3190,9 @@ static int bpf_prog_load_iu(union bpf_attr *attr, bpfptr_t uattr)
 		bpf_prog_put(prog);
 	return err;
 
+free_base:
+	prog->base = NULL;
+	bpf_prog_put(base);
 free_used_maps:
 	/* In case we have subprogs, we need to wait for a grace
 	 * period before we can tear down JIT memory since symbols
