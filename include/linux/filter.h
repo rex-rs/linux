@@ -703,7 +703,7 @@ static __always_inline u32 __bpf_prog_run(const struct bpf_prog *prog,
 		u64 initial_time = jiffies;
 		ret = dfunc(ctx, prog->insnsi, prog->bpf_func);
 		u64 completed_time = jiffies;
-		printk("%lu\n", completed_time - initial_time);
+		printk("BPF dispatcher function overhead: %lu\n", completed_time - initial_time);
 	}
 	return ret;
 }
