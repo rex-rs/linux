@@ -24,6 +24,8 @@
 #include <crypto/sha1.h>
 #include <linux/u64_stats_sync.h>
 
+#include <linux/jiffies.h>
+
 #include <net/sch_generic.h>
 
 #include <asm/byteorder.h>
@@ -698,7 +700,10 @@ static __always_inline u32 __bpf_prog_run(const struct bpf_prog *prog,
 		u64_stats_add(&stats->nsecs, duration);
 		u64_stats_update_end_irqrestore(&stats->syncp, flags);
 	} else {
+		u64 initial_time = jiffies;
 		ret = dfunc(ctx, prog->insnsi, prog->bpf_func);
+		u64 completed_time = jiffies;
+		printk("%lu\n", completed_time - initial_time);
 	}
 	return ret;
 }
