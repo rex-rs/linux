@@ -11,9 +11,9 @@ enum kprobe_target_cmd {
 	KPROBE_TARGET_RUN_FUNC = 1313ULL,
 };
 
-int noinline kprobe_target_func(void)
+static void noinline kprobe_target_func(void)
 {
-	return 0;
+	barrier();
 }
 
 static long target_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
