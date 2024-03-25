@@ -39,6 +39,8 @@ tprogs-y += task_fd_query
 tprogs-y += ibumad
 tprogs-y += hbm
 
+tprogs-y += spinlock_cleanup_benchmark
+
 # Libbpf dependencies
 LIBBPF_SRC = $(TOOLS_PATH)/lib/bpf
 LIBBPF_OUTPUT = $(abspath $(BPF_SAMPLES_PATH))/libbpf
@@ -82,10 +84,12 @@ ibumad-objs := ibumad_user.o
 hbm-objs := hbm.o $(CGROUP_HELPERS)
 
 xdp_router_ipv4-objs := xdp_router_ipv4_user.o $(XDP_SAMPLE)
+spinlock_cleanup_benchmark-objs := spinlock_cleanup_benchmark_user.o $(TRACE_HELPERS)
 
 # Tell kbuild to always build the programs
 always-y := $(tprogs-y)
 always-y += hello_kern.o
+always-y += spinlock_cleanup_benchmark_kern.o
 always-y += sockex1_kern.o
 always-y += sockex2_kern.o
 always-y += sockex3_kern.o
