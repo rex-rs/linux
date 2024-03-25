@@ -704,7 +704,9 @@ static __always_inline u32 __bpf_prog_run(const struct bpf_prog *prog,
 		initial_time = ktime_get_mono_fast_ns();
 		ret = dfunc(ctx, prog->insnsi, prog->bpf_func);
 		completed_time = ktime_get_mono_fast_ns();
-		printk("BPF dispatcher function overhead: %lu\n", completed_time - initial_time);
+		barrier();
+		if (prog->type == BPF_PROG_TYPE_KPROBE)
+			printk("BPF dispatcher function overhead: %llu\n", completed_time - initial_time);
 	}
 	return ret;
 }
