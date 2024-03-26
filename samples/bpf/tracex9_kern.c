@@ -17,7 +17,7 @@ struct {
 	__uint(max_entries, 256);
 } map_array SEC(".maps");
 
-SEC("tracepoint/syscalls/sys_enter_dup")
+SEC("kprobe/kprobe_target_func")
 int bpf_prog1(struct cpu_args *ctx)
 {
 	u64 start, end;
