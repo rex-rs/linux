@@ -27,7 +27,7 @@ int main(int argc, char **argv)
 	char filename[256];
 	int ret;
 
-	obj = bpf_object__open_file("spinlock_cleanup_benchmark_kern.o", NULL);
+	obj = bpf_object__open_file("tracex9_kern.o", NULL);
 	if (libbpf_get_error(obj)) {
 		fprintf(stderr, "ERROR: opening BPF object file failed\n");
 		return 0;
@@ -51,6 +51,8 @@ int main(int argc, char **argv)
 		link = NULL;
 		goto cleanup;
 	}
+
+	bpf_link__pin(link, "/sys/fs/bpf/kprobe_link");
 
 cleanup:
 	bpf_link__destroy(link);
