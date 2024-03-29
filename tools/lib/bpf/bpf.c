@@ -521,6 +521,17 @@ int bpf_map_freeze(int fd)
 	return libbpf_err_errno(ret);
 }
 
+int bpf_prog_terminate( int prog_id )
+{
+       union bpf_attr attr;
+	int res;
+       memset(&attr, 0, sizeof(attr));
+       attr.prog_id = prog_id;
+	printf("Calling bpf terminate from bpftool : bpf/bpf.c\n");	
+       res = sys_bpf(BPF_PROG_TERMINATE, &attr, sizeof(attr)); // goes to : kernel/bpf/syscall.c
+       return res; 
+}
+
 static int bpf_map_batch_common(int cmd, int fd, void  *in_batch,
 				void *out_batch, void *keys, void *values,
 				__u32 *count,
@@ -720,6 +731,20 @@ int bpf_prog_detach(int target_fd, enum bpf_attach_type type)
 int bpf_prog_detach2(int prog_fd, int target_fd, enum bpf_attach_type type)
 {
 	return bpf_prog_detach_opts(prog_fd, target_fd, type, NULL);
+}
+
+int bpf_prog_terminate( int prog_fd )
+{
+	union bpf_attr attr;
+	int ret;
+
+	memset(&attr, 0, sizeof(attr));
+	attr.target_fd	 = target_fd;
+	attr.attach_bpf_fd = prog_fd;
+	attr.attach_type = type;
+
+	ret = sys_bpf(BPF_PROG_DETACH, &attr, sizeof(attr));
+	return libbpf_err_errno(ret);
 }
 
 int bpf_link_create(int prog_fd, int target_fd,

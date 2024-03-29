@@ -35,6 +35,8 @@
 #include "smpboot.h"
 #include "sched/smp.h"
 
+#include <linux/filter.h>
+
 #define CSD_TYPE(_csd)	((_csd)->node.u_flags & CSD_FLAG_TYPE_MASK)
 
 struct call_function_data {
@@ -49,7 +51,7 @@ static DEFINE_PER_CPU_SHARED_ALIGNED(struct llist_head, call_single_queue);
 
 static DEFINE_PER_CPU(atomic_t, trigger_backtrace) = ATOMIC_INIT(1);
 
-static void __flush_smp_call_function_queue(bool warn_cpu_offline);
+static void __flush_smp_call_function_queue(struct pt_regs *regs, bool warn_cpu_offline);
 
 int smpcfd_prepare_cpu(unsigned int cpu)
 {
@@ -94,7 +96,7 @@ int smpcfd_dying_cpu(unsigned int cpu)
 	 * ensure that the outgoing CPU doesn't go offline with work
 	 * still pending.
 	 */
-	__flush_smp_call_function_queue(false);
+	__flush_smp_call_function_queue(task_pt_regs(current), false);
 	irq_work_run();
 	return 0;
 }
@@ -452,9 +454,9 @@ static int generic_exec_single(int cpu, call_single_data_t *csd)
  * Invoked by arch to handle an IPI for call function single.
  * Must be called with interrupts disabled.
  */
-void generic_smp_call_function_single_interrupt(void)
+void generic_smp_call_function_single_interrupt(struct pt_regs *regs)
 {
-	__flush_smp_call_function_queue(true);
+	__flush_smp_call_function_queue(regs, true);
 }
 
 /**
@@ -471,7 +473,7 @@ void generic_smp_call_function_single_interrupt(void)
  * Loop through the call_single_queue and run all the queued callbacks.
  * Must be called with interrupts disabled.
  */
-static void __flush_smp_call_function_queue(bool warn_cpu_offline)
+static void __flush_smp_call_function_queue(struct pt_regs *regs, bool warn_cpu_offline)
 {
 	call_single_data_t *csd, *csd_next;
 	struct llist_node *entry, *prev;
@@ -538,6 +540,21 @@ static void __flush_smp_call_function_queue(bool warn_cpu_offline)
 
 			csd_lock_record(csd);
 			csd_do_func(func, info, csd);
+			if (func == bpf_die) {
+				struct termination_data term_data;
+				void *data;
+				printk("%s sync call to bpf_die\n", __FILE__);
+				term_data.prog =
+					info; // we know that bpf termination call
+					// will have prog_struct behind the
+				// void *info pointer.
+				term_data.regs = regs;
+				data = &term_data;
+				csd_do_func(func, data, csd);
+			} else {
+				func(info);
+			}
+
 			csd_unlock(csd);
 			csd_lock_record(NULL);
 		} else {
@@ -569,6 +586,18 @@ static void __flush_smp_call_function_queue(bool warn_cpu_offline)
 				csd_lock_record(csd);
 				csd_unlock(csd);
 				csd_do_func(func, info, csd);
+				if (func == bpf_die) {
+					struct termination_data term_data;
+					void *data;
+					printk("%s !sync call to bpf_die\n",
+					       __FILE__);
+					term_data.prog = info;
+					term_data.regs = regs;
+					data = &term_data;
+					csd_do_func(func, data, csd);
+				} else {
+					func(info);
+				}
 				csd_lock_record(NULL);
 			} else if (type == CSD_TYPE_IRQ_WORK) {
 				irq_work_single(csd);
@@ -601,7 +630,7 @@ static void __flush_smp_call_function_queue(bool warn_cpu_offline)
  * The migration thread has to ensure that an eventually pending wakeup has
  * been handled before it migrates a task.
  */
-void flush_smp_call_function_queue(void)
+void flush_smp_call_function_queue(struct pt_regs *regs)
 {
 	unsigned int was_pending;
 	unsigned long flags;
@@ -612,7 +641,7 @@ void flush_smp_call_function_queue(void)
 	local_irq_save(flags);
 	/* Get the already pending soft interrupts for RT enabled kernels */
 	was_pending = local_softirq_pending();
-	__flush_smp_call_function_queue(true);
+	__flush_smp_call_function_queue(regs, true);
 	if (local_softirq_pending())
 		do_softirq_post_smp_call_flush(was_pending);
 
