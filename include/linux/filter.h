@@ -667,6 +667,9 @@ struct sk_filter {
 	struct bpf_prog	*prog;
 };
 
+
+void bpf_die(void* data); // handler for termination requests 
+
 DECLARE_STATIC_KEY_FALSE(bpf_stats_enabled_key);
 
 extern struct mutex nf_conn_btf_access_lock;
@@ -684,8 +687,15 @@ static __always_inline u32 __bpf_prog_run(const struct bpf_prog *prog,
 					  bpf_dispatcher_fn dfunc)
 {
 	u32 ret;
+	u32 cpu_id;
 
 	cant_migrate();
+	cpu_id = raw_smp_processor_id();
+	prog->saved_state->cpu_id = cpu_id;
+	printk("Inside prog run. Calling BPF function.");
+	if (prog->aux->id != 0)
+		printk("[fd:%d]-[CPU:%d] __bpf_prog_run \n", prog->aux->id,
+		       cpu_id);
 	if (static_branch_unlikely(&bpf_stats_enabled_key)) {
 		struct bpf_prog_stats *stats;
 		u64 duration, start = sched_clock();
@@ -708,6 +718,7 @@ static __always_inline u32 __bpf_prog_run(const struct bpf_prog *prog,
 		/* if (prog->type == BPF_PROG_TYPE_KPROBE) */
 		/* 	printk("BPF dispatcher function overhead: %llu\n", completed_time - initial_time); */
 	}
+	prog->saved_state->cpu_id = -1; 
 	return ret;
 }
 

@@ -1161,8 +1161,8 @@ asmlinkage long sys_geteuid16(void);
 asmlinkage long sys_getgid16(void);
 asmlinkage long sys_getegid16(void);
 #endif
-
 /* obsolete */
+asmlinkage long sys_hello(void);
 asmlinkage long sys_socketcall(int call, unsigned long __user *args);
 
 /* obsolete */
@@ -1317,3 +1317,4 @@ int __sys_getsockopt(int fd, int level, int optname, char __user *optval,
 int __sys_setsockopt(int fd, int level, int optname, char __user *optval,
 		int optlen);
 #endif
+

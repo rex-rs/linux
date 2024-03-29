@@ -697,6 +697,20 @@ static int do_show(int argc, char **argv)
 	return err;
 }
 
+static int do_terminate(int argc, char**argv)
+{
+	int prog_id;
+	int res;
+	if (argc==0)
+		return BAD_ARG();
+
+	prog_id = atoi(argv[0]);
+	res = bpf_prog_terminate(prog_id); // goes to : tools/lib/bpf/bpf.c 
+
+	
+	return res;
+}
+
 static int
 prog_dump(struct bpf_prog_info *info, enum dump_mode mode,
 	  char *filepath, bool opcodes, bool visual, bool linum)
@@ -2453,6 +2467,7 @@ out:
 	free(profile_tgt_name);
 	return err;
 }
+
 
 #endif /* BPFTOOL_WITHOUT_SKELETONS */
 

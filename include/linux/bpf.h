@@ -1605,6 +1605,12 @@ struct rex_mem {
 	u32 total_page;
 };
 
+struct rex_saved_states{
+	int cpu_id;
+	u64 unwinder_insn_off;
+	struct bpf_link *link;
+};
+
 struct bpf_prog {
 	u16			pages;		/* Number of allocated pages */
 	u16			jited:1,	/* Is our filter JIT'ed? */
@@ -1636,6 +1642,7 @@ struct bpf_prog {
 	struct sock_fprog_kern	*orig_prog;	/* Original BPF program */
 	struct rex_mem		mem;		/* Rex base program pages */
 	struct bpf_prog		*base;		/* Rex base program */
+	struct rex_saved_states *saved_state;
 	/* Instructions for interpreter */
 	union {
 		DECLARE_FLEX_ARRAY(struct sock_filter, insns);
