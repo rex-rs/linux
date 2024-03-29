@@ -974,6 +974,9 @@ enum bpf_cmd {
 	BPF_PROG_BIND_MAP,
 	BPF_TOKEN_CREATE,
 	BPF_PROG_STREAM_READ_BY_FD,
+	BPF_PROG_LOAD_REX_BASE,
+	BPF_PROG_LOAD_REX,
+	BPF_PROG_TERMINATE,
 	__MAX_BPF_CMD,
 };
 
@@ -1573,6 +1576,7 @@ union bpf_attr {
 		__u32		prog_flags;
 		char		prog_name[BPF_OBJ_NAME_LEN];
 		__u32		prog_ifindex;	/* ifindex of netdev to prep for */
+		__u64 		unwinder_insn_off;
 		/* For some prog types expected attach type must be known at
 		 * load time to verify attach type specific parts of prog
 		 * (context accesses, allowed helpers, etc).
