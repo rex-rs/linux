@@ -99,15 +99,26 @@ struct bpf_prog *bpf_prog_alloc_no_stats(unsigned int size, gfp_t gfp_extra_flag
 	gfp_t gfp_flags = bpf_memcg_flags(GFP_KERNEL | __GFP_ZERO | gfp_extra_flags);
 	struct bpf_prog_aux *aux;
 	struct bpf_prog *fp;
+	struct rex_saved_states *saved_state; // for BPF termination
 
 	size = round_up(size, __PAGE_SIZE);
 	fp = __vmalloc(size, gfp_flags);
 	if (fp == NULL)
 		return NULL;
+	//malloc(sizeof(*saved_state),GFP_KERNEL_ACCOUNT | gfp_extra_flags);
+	saved_state =
+		kzalloc(sizeof(*saved_state),
+			bpf_memcg_flags(GFP_KERNEL_ACCOUNT | gfp_extra_flags));
+	if(saved_state == NULL){
+		vfree(fp);
+		return NULL;
+	}	
+	saved_state->cpu_id = -1;
 
 	aux = kzalloc(sizeof(*aux), bpf_memcg_flags(GFP_KERNEL | gfp_extra_flags));
 	if (aux == NULL) {
 		vfree(fp);
+		kfree(saved_state);
 		return NULL;
 	}
 	fp->active = alloc_percpu_gfp(int, bpf_memcg_flags(GFP_KERNEL | gfp_extra_flags));
@@ -120,6 +131,7 @@ struct bpf_prog *bpf_prog_alloc_no_stats(unsigned int size, gfp_t gfp_extra_flag
 	fp->pages = size / PAGE_SIZE;
 	fp->aux = aux;
 	fp->aux->prog = fp;
+	fp->saved_state = saved_state;
 	fp->jit_requested = ebpf_jit_enabled();
 	fp->blinding_requested = bpf_jit_blinding_enabled(fp);
 #ifdef CONFIG_CGROUP_BPF
@@ -699,6 +711,7 @@ void bpf_prog_kallsyms_add(struct bpf_prog *fp)
 	bpf_prog_ksym_set_addr(fp);
 	bpf_prog_ksym_set_name(fp);
 	fp->aux->ksym.prog = true;
+	printk("Adding bpf prog : %s to address : 0x%lx\n", fp->aux->ksym.name, fp->aux->ksym.start);
 
 	bpf_ksym_add(&fp->aux->ksym);
 
