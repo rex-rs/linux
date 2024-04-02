@@ -41,6 +41,8 @@ tprogs-y += hbm
 
 tprogs-y += tracex9
 
+t-progs-y += recursive
+
 # Libbpf dependencies
 LIBBPF_SRC = $(TOOLS_PATH)/lib/bpf
 LIBBPF_OUTPUT = $(abspath $(BPF_SAMPLES_PATH))/libbpf
@@ -84,6 +86,8 @@ ibumad-objs := ibumad_user.o
 hbm-objs := hbm.o $(CGROUP_HELPERS)
 
 xdp_router_ipv4-objs := xdp_router_ipv4_user.o $(XDP_SAMPLE)
+
+recursive-objs := recursive_user.o
 tracex9-objs := tracex9_user.o $(TRACE_HELPERS)
 
 # Tell kbuild to always build the programs
@@ -133,6 +137,8 @@ always-y += hbm_edt_kern.o
 
 COMMON_CFLAGS = $(TPROGS_USER_CFLAGS)
 TPROGS_LDFLAGS = $(TPROGS_USER_LDFLAGS)
+
+always-y += recursive_kern.o
 
 ifeq ($(ARCH), arm)
 # Strip all except -D__LINUX_ARM_ARCH__ option needed to handle linux
