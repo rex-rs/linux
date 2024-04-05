@@ -3622,6 +3622,7 @@ static int bpf_prog_load_iu_base(union bpf_attr *attr, bpfptr_t uattr)
 
 	prog->orig_prog = NULL;
 	prog->jited = 1; /* DJW: we are always 'jited' */
+	prog->no_bpf = 1;
 
 	atomic64_set(&prog->aux->refcnt, 1);
 	prog->gpl_compatible = is_gpl ? 1 : 0;
@@ -3656,8 +3657,6 @@ static int bpf_prog_load_iu_base(union bpf_attr *attr, bpfptr_t uattr)
 	//prog->bpf_func = __vmalloc(round_up(prog->len, PAGE_SIZE), GFP_KERNEL, PAGE_KERNEL_EXEC);
 	//prog->bpf_func = module_alloc(round_up(prog->len, PAGE_SIZE));
 	bpf_get_trace_printk_proto();
-
-	prog->no_bpf = 1;
 
 	filp = fget(attr->rustfd);
 	ehdr = kmalloc(sizeof(Elf64_Ehdr), GFP_KERNEL);
