@@ -11,17 +11,18 @@ enum kprobe_target_cmd {
 	KPROBE_TARGET_RUN_FUNC = 1313ULL,
 };
 
-static void noinline kprobe_target_func(void)
+/* Defined as global to force standard calling convention */
+unsigned long noinline kprobe_target_func(unsigned long arg)
 {
 	barrier();
+	return arg;
 }
 
 static long target_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
 	switch (cmd) {
 	case KPROBE_TARGET_RUN_FUNC:
-		kprobe_target_func();
-		return 0;
+		return kprobe_target_func(arg);
 	default:
 		return -ENOSYS;
 	}
