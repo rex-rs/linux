@@ -41,7 +41,7 @@ tprogs-y += hbm
 
 tprogs-y += tracex9
 
-t-progs-y += recursive
+tprogs-y += recursive
 
 # Libbpf dependencies
 LIBBPF_SRC = $(TOOLS_PATH)/lib/bpf
