@@ -15,6 +15,8 @@
 #include <sys/time.h>
 #include <sys/resource.h>
 #include <sys/wait.h>
+#include <linux/types.h>
+#include <linux/if_link.h>
 
 #include <bpf/bpf.h>
 #include <bpf/libbpf.h>
@@ -26,6 +28,10 @@ int main(int argc, char **argv)
 	struct bpf_object *obj;
 	char filename[256];
 	int ret;
+
+	int interface_idx = atoi(argv[1]);
+	unsigned int xdp_flags = 0;
+	xdp_flags |= XDP_FLAGS_SKB_MODE;
 
 	obj = bpf_object__open_file("tracex9_kern.o", NULL);
 	if (libbpf_get_error(obj)) {
@@ -44,15 +50,12 @@ int main(int argc, char **argv)
 		printf("finding a prog in obj file failed\n");
 		goto cleanup;
 	}
+	int xdp_main_prog_fd = bpf_program__fd(prog);
 
-	link = bpf_program__attach(prog);
-	if (libbpf_get_error(link)) {
-		fprintf(stderr, "ERROR: bpf_program__attach failed\n");
-		link = NULL;
-		goto cleanup;
+	if (bpf_set_link_xdp_fd(interface_idx, xdp_main_prog_fd, xdp_flags) < 0) {
+		fprintf(stderr, "ERROR: xdp failed");
 	}
 
-	bpf_link__pin(link, "/sys/fs/bpf/kprobe_link");
 
 cleanup:
 	bpf_link__destroy(link);
