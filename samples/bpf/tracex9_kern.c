@@ -13,12 +13,12 @@ struct MapEntry {
 struct {
 	__uint(type, BPF_MAP_TYPE_ARRAY);
 	__type(key, u32);
-	__type(value, MapEntry);
+	__type(value, struct MapEntry);
 	__uint(max_entries, 256);
 } map_array SEC(".maps");
 
-SEC("kprobe/kprobe_target_func")
-int bpf_prog1(struct cpu_args *ctx)
+SEC("xdp")
+int bpf_prog1(struct xdp_md *ctx)
 {
 	u64 start, end;
 	u32 key = 0;
@@ -29,11 +29,11 @@ int bpf_prog1(struct cpu_args *ctx)
 		bpf_spin_lock(&entry->lock);
 		bpf_spin_unlock(&entry->lock);
 		end = bpf_ktime_get_ns();
-		bpf_printk("Spinlock lock and unlock: %llu\n", end - start);
+		bpf_printk("Spinlock lock and unlock: %llu ns", end - start);
 	} else {
-		bpf_printk("Unable to look up map\n");
+		bpf_printk("Unable to look up map");
 	}
-	return 0;
+	return XDP_PASS;
 }
 
 char _license[] SEC("license") = "GPL";
