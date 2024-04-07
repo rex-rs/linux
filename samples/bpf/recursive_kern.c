@@ -15,9 +15,12 @@ struct {
 	__uint(max_entries, 1);
 } prog_map SEC(".maps");
 
-static noinline int mid(struct pt_regs *ctx)
+static noinline int purgatory(struct pt_regs *ctx)
 {
 	bpf_tail_call(ctx, &prog_map, 0);
+
+	bpf_printk("tailcall failed\n");
+	return 0;
 }
 
 SEC("kprobe/")
@@ -35,21 +38,23 @@ int calculate_tail_factorial(struct pt_regs *ctx)
 	accum += n;
 	n -= 1;
 	state = (((__u64)accum) << 32) | n;
-	accum = state >> 32;
-	n = state & 0xFFFFFFFFULL;
 	bpf_tail_call(ctx, &prog_map, 0);
 
+	bpf_printk("tailcall failed\n");
 	return 0;
 }
 
 SEC("kprobe/kprobe_target_func")
 int bpf_recursive(struct pt_regs *ctx)
 {
+	int ret = 0;
 	/* accum = 0, n = ctx->rdi */
 	state = ctx->di & 0xFFFFFFFFULL;
+
 	__u64 start = bpf_ktime_get_ns();
-	mid(ctx);
+	ret = purgatory(ctx);
 	__u64 stop = bpf_ktime_get_ns();
+
 	bpf_printk("Time: %llu\n", stop - start);
 	return 0;
 }
