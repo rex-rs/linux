@@ -60,6 +60,8 @@
 #define BPF_OBJ_FLAG_MASK   (BPF_F_RDONLY | BPF_F_WRONLY)
 
 DEFINE_PER_CPU(int, bpf_prog_active);
+DEFINE_PER_CPU(unsigned int, bpf_termination_flag); // used by bpf_die to check for BPF's IP before issuing termination
+
 static DEFINE_IDR(prog_idr);
 static DEFINE_SPINLOCK(prog_idr_lock);
 static DEFINE_IDR(map_idr);
@@ -142,23 +144,16 @@ __maybe_unused void bpf_die(void* data)
                 atomic64_dec(&kill_prog->aux->refcnt);
         }       
         bpf_prog_put(kill_prog);
-        printk("After bpf_prog_put\n");
 
-	// read the location of panic handler and change rip to it
-	// kill_prog->saved_state->saved_regs->ip = <address of panic handler>
-	//printk("Before changing saved ip, location on stack : 0x%lx, old ip: 0x%lx\n",&task_pt_regs(current)->ip, task_pt_regs(current)->ip );
-        printk("Before changing ip, old ip : 0x%lx \n", regs->ip);
-	regs->ip = kill_prog->saved_state->unwinder_insn_off;
-        printk("After changing task_struct's ip to unwinder : 0x%lx \n", regs->ip);
-/*
-	asm volatile(
-		"addq $16, %%rsp\n"
-		"movq $new_address, (%%rsp)\n"
-		: 
-		: "I" (new_address)
-		: "memory"
-	);
-*/
+	if (per_cpu(bpf_termination_flag, cpu_id)  == 0){
+		printk("BPF program not in any helper/panic. Changing its IP\n");
+		regs->ip = kill_prog->saved_state->unwinder_insn_off;
+	}
+	else{
+		printk("BPF program in helper/panic. Changing its termination flag\n");
+	  	per_cpu(bpf_termination_flag, cpu_id) = 2; 
+	}
+
 }
 
 const struct bpf_map_ops bpf_map_offload_ops = {
@@ -3211,9 +3206,12 @@ static int bpf_prog_load_rex(union bpf_attr *attr, bpfptr_t uattr)
 	prog->bpf_func = (void *)((u64)base->mem.mem + attr->prog_offset);
 
 	/* Rust unwinder offset */
-	printk("%s %d attr.unwinder_insn_off: 0x%lx\n", __FILE__, __LINE__, attr->unwinder_insn_off);
-	prog->saved_state->unwinder_insn_off = (u64)base->mem.mem + (u64)attr->unwinder_insn_off;
-	printk("%s %d bpf_func : 0x%lx,  unwinder_insn_off: 0x%lx\n", __FILE__, __LINE__,prog->bpf_func, prog->saved_state->unwinder_insn_off);
+	printk("%s %d attr.unwinder_insn_off: 0x%llx\n", __FILE__, __LINE__,
+	       attr->unwinder_insn_off);
+	prog->saved_state->unwinder_insn_off =
+		(u64)base->mem.mem + (u64)attr->unwinder_insn_off;
+	printk("%s %d bpf_func : 0x%pF,  unwinder_insn_off: 0x%llx\n", __FILE__,
+	       __LINE__, prog->bpf_func, prog->saved_state->unwinder_insn_off);
 
 	err = bpf_prog_alloc_id(prog);
 	if (err)
@@ -6879,6 +6877,7 @@ static int __sys_bpf(enum bpf_cmd cmd, bpfptr_t uattr, unsigned int size)
 		break;
 	case BPF_TOKEN_CREATE:
 		err = token_create(&attr);
+		break;
 	case BPF_PROG_TERMINATE:
 		printk("Starting terminate syscall prog_id : %d\n",
 		       attr.prog_id);
