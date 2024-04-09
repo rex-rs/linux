@@ -733,20 +733,6 @@ int bpf_prog_detach2(int prog_fd, int target_fd, enum bpf_attach_type type)
 	return bpf_prog_detach_opts(prog_fd, target_fd, type, NULL);
 }
 
-int bpf_prog_terminate( int prog_fd )
-{
-	union bpf_attr attr;
-	int ret;
-
-	memset(&attr, 0, sizeof(attr));
-	attr.target_fd	 = target_fd;
-	attr.attach_bpf_fd = prog_fd;
-	attr.attach_type = type;
-
-	ret = sys_bpf(BPF_PROG_DETACH, &attr, sizeof(attr));
-	return libbpf_err_errno(ret);
-}
-
 int bpf_link_create(int prog_fd, int target_fd,
 		    enum bpf_attach_type attach_type,
 		    const struct bpf_link_create_opts *opts)
