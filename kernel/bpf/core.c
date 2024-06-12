@@ -3409,7 +3409,7 @@ struct bpf_prog *bpf_prog_find_from_stack(void)
 
 #endif
 
-struct iu_cleanup_entry {
+struct rex_cleanup_entry {
 	u64 valid;
 	void *cleanup_fn;
 	void *cleanup_arg;
@@ -3417,4 +3417,4 @@ struct iu_cleanup_entry {
 
 #define IU_CLEANUP_ENTRIES_SIZE 64
 
-DEFINE_PER_CPU(struct iu_cleanup_entry[64], iu_cleanup_entries) ____cacheline_aligned = { 0 };
+DEFINE_PER_CPU(struct rex_cleanup_entry[64], rex_cleanup_entries) ____cacheline_aligned = { 0 };
