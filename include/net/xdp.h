@@ -652,7 +652,7 @@ static __always_inline u32 bpf_prog_run_xdp(const struct bpf_prog *prog,
 	 * for accessing map entries.
 	 */
 	u32 act = __bpf_prog_run(prog, xdp,
-				 prog->no_bpf ? iu_dispatcher_func :
+				 prog->no_bpf ? rex_dispatcher_func :
 						BPF_DISPATCHER_FUNC(xdp));
 
 	if (static_branch_unlikely(&bpf_master_redirect_enabled_key)) {

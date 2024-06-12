@@ -18,17 +18,17 @@
 #define IU_STACK_ORDER 2
 #define IU_STACK_SIZE (PAGE_SIZE << IU_STACK_ORDER)
 
-struct iu_stack {
+struct rex_stack {
 	char stack[IU_STACK_SIZE];
 } __aligned(IU_STACK_SIZE);
 
-DEFINE_PER_CPU_PAGE_ALIGNED(struct iu_stack, iu_stack_backing_store) __visible;
-DECLARE_INIT_PER_CPU(iu_stack_backing_store);
-DEFINE_PER_CPU(void *, iu_stack_ptr);
+DEFINE_PER_CPU_PAGE_ALIGNED(struct rex_stack, rex_stack_backing_store) __visible;
+DECLARE_INIT_PER_CPU(rex_stack_backing_store);
+DEFINE_PER_CPU(void *, rex_stack_ptr);
 
-static int map_iu_stack(unsigned int cpu)
+static int map_rex_stack(unsigned int cpu)
 {
-	char *stack = (char *)per_cpu_ptr(&iu_stack_backing_store, cpu);
+	char *stack = (char *)per_cpu_ptr(&rex_stack_backing_store, cpu);
 	struct page *pages[IU_STACK_SIZE / PAGE_SIZE];
 	void *va;
 	int i;
@@ -44,31 +44,31 @@ static int map_iu_stack(unsigned int cpu)
 		return -ENOMEM;
 
 	/* Store actual TOS to avoid adjustment in the hotpath */
-	per_cpu(iu_stack_ptr, cpu) = va + IU_STACK_SIZE;
+	per_cpu(rex_stack_ptr, cpu) = va + IU_STACK_SIZE;
 
-	printk("Initialize iu_stack on CPU %d at 0x%llx\n", cpu,
+	printk("Initialize rex_stack on CPU %d at 0x%llx\n", cpu,
 	       ((u64)va) + IU_STACK_SIZE);
 
 	return 0;
 }
 
-static int __init init_iu_stack(void)
+static int __init init_rex_stack(void)
 {
 	int i, ret = 0;
 	for_each_online_cpu (i) {
-		ret = map_iu_stack(i);
+		ret = map_rex_stack(i);
 		if (ret < 0)
 			break;
 	}
 	return ret;
 }
 
-module_init(init_iu_stack);
+module_init(init_rex_stack);
 
-DEFINE_PER_CPU(unsigned long, iu_old_sp);
-DEFINE_PER_CPU(unsigned long, iu_old_fp);
+DEFINE_PER_CPU(unsigned long, rex_old_sp);
+DEFINE_PER_CPU(unsigned long, rex_old_fp);
 
-__nocfi noinline void notrace __noreturn iu_landingpad(char *msg)
+__nocfi noinline void notrace __noreturn rex_landingpad(char *msg)
 {
 	/* Report error */
 	WARN(true, "Panic from inner-unikernel prog: %s\n", msg);
@@ -76,7 +76,7 @@ __nocfi noinline void notrace __noreturn iu_landingpad(char *msg)
 	/* Set an return value of 0 and jump to trampoline */
 	asm volatile(
 		"movq $0,%%rax\n\t"
-		"jmp iu_exit\n\t"
+		"jmp rex_exit\n\t"
 		: : :"rax"
 	);
 

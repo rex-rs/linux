@@ -31,7 +31,7 @@
 #include <linux/memcontrol.h>
 #include <linux/cfi.h>
 
-#include <asm/iu_unwind.h>
+#include <asm/rex_unwind.h>
 
 struct bpf_verifier_env;
 struct bpf_verifier_log;
@@ -1600,7 +1600,7 @@ struct bpf_prog_aux {
 	};
 };
 
-struct bpf_mem {
+struct rex_mem {
 	void *mem;
 	u32 total_page;
 };
@@ -1634,8 +1634,8 @@ struct bpf_prog {
 					    const struct bpf_insn *insn);
 	struct bpf_prog_aux	*aux;		/* Auxiliary fields */
 	struct sock_fprog_kern	*orig_prog;	/* Original BPF program */
-	struct bpf_mem		mem; /* inner-unikernel base program pages */
-	struct bpf_prog		*base; /* inner-unikernel base program */
+	struct rex_mem		mem;		/* Rex base program pages */
+	struct bpf_prog		*base;		/* Rex base program */
 	/* Instructions for interpreter */
 	union {
 		DECLARE_FLEX_ARRAY(struct sock_filter, insns);
