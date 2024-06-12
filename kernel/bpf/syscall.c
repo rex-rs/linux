@@ -2213,7 +2213,7 @@ static int find_prog_type(enum bpf_prog_type type, struct bpf_prog *prog)
 {
 	const struct bpf_prog_ops *ops;
 
-	if (type == BPF_PROG_TYPE_IU_BASE)
+	if (type == BPF_PROG_TYPE_REX_BASE)
 		return 0;
 
 	if (type >= ARRAY_SIZE(bpf_prog_types))
@@ -3009,7 +3009,7 @@ put_token:
 	return err;
 }
 
-static int bpf_prog_load_iu(union bpf_attr *attr, bpfptr_t uattr)
+static int bpf_prog_load_rex(union bpf_attr *attr, bpfptr_t uattr)
 {
 	enum bpf_prog_type type = attr->prog_type;
 	struct bpf_prog *prog, *dst_prog = NULL;
@@ -3205,7 +3205,7 @@ free_prog:
 	return err;
 }
 
-static unsigned int __iu_prog_empty(const void *ctx,
+static unsigned int __rex_prog_empty(const void *ctx,
 		const struct bpf_insn *insn)
 {
 	return 0;
@@ -3316,7 +3316,7 @@ static int elf_read(struct file *file, void *buf, size_t len, loff_t pos)
 	return 0;
 }
 
-static int iu_parse_maps(union bpf_attr *attr, struct bpf_prog *prog,
+static int rex_parse_maps(union bpf_attr *attr, struct bpf_prog *prog,
 	u64 addr_start)
 {
 	u64 map_offs[MAX_USED_MAPS];
@@ -3324,7 +3324,7 @@ static int iu_parse_maps(union bpf_attr *attr, struct bpf_prog *prog,
 	int idx, ret = 0;
 
 	if (attr->map_cnt >= MAX_USED_MAPS) {
-		printk("attr->iu_maps_len >= MAX_USED_MAPS\n");
+		printk("attr->rex_maps_len >= MAX_USED_MAPS\n");
 		return -EINVAL;
 	}
 
@@ -3379,12 +3379,12 @@ free_used_maps:
 	return ret;
 }
 
-static int iu_parse_relas(union bpf_attr *attr, u64 addr_start)
+static int rex_parse_relas(union bpf_attr *attr, u64 addr_start)
 {
 	int i = 0;
 	int ret = 0;
-	u64 relas_size = attr->nr_dyn_relas * sizeof(struct iu_rela_dyn);
-	struct iu_rela_dyn *relas = kmalloc_array(attr->nr_dyn_relas,
+	u64 relas_size = attr->nr_dyn_relas * sizeof(struct rex_rela_dyn);
+	struct rex_rela_dyn *relas = kmalloc_array(attr->nr_dyn_relas,
 		sizeof(*relas), GFP_KERNEL);
 
 	if (!relas)
@@ -3425,11 +3425,11 @@ free_relas:
 	return ret;
 }
 
-static int iu_parse_dyn_syms(union bpf_attr *attr, u64 addr_start)
+static int rex_parse_dyn_syms(union bpf_attr *attr, u64 addr_start)
 {
 	int i = 0, ret = 0;
-	u64 syms_size = attr->nr_dyn_syms * sizeof(struct iu_dyn_sym);
-	struct iu_dyn_sym *syms = kmalloc_array(attr->nr_dyn_syms,
+	u64 syms_size = attr->nr_dyn_syms * sizeof(struct rex_dyn_sym);
+	struct rex_dyn_sym *syms = kmalloc_array(attr->nr_dyn_syms,
 		sizeof(*syms), GFP_KERNEL);
 	char *name = NULL;
 
@@ -3482,7 +3482,7 @@ free_syms:
 }
 
 #define MAX_PROG_SZ (8192 << 4)
-static int bpf_prog_load_iu_base(union bpf_attr *attr, bpfptr_t uattr)
+static int bpf_prog_load_rex_base(union bpf_attr *attr, bpfptr_t uattr)
 {
 	enum bpf_prog_type type = attr->prog_type;
 	struct bpf_prog *prog, *dst_prog = NULL;
@@ -3861,22 +3861,22 @@ static int bpf_prog_load_iu_base(union bpf_attr *attr, bpfptr_t uattr)
 	kfree(sec_off);
 	fput(filp);
 
-	prog->bpf_func = __iu_prog_empty;
+	prog->bpf_func = __rex_prog_empty;
 
 	if (attr->map_cnt) {
-		err = iu_parse_maps(attr, prog, addr_start);
+		err = rex_parse_maps(attr, prog, addr_start);
 		if (err)
 			goto free_used_maps;
 	}
 
 	if (attr->nr_dyn_relas) {
-		err = iu_parse_relas(attr, addr_start);
+		err = rex_parse_relas(attr, addr_start);
 		if (err)
 			goto free_used_maps;
 	}
 
 	if (attr->nr_dyn_syms) {
-		err = iu_parse_dyn_syms(attr, addr_start);
+		err = rex_parse_dyn_syms(attr, addr_start);
 		if (err)
 			goto free_used_maps;
 	}
@@ -6725,11 +6725,11 @@ static int __sys_bpf(enum bpf_cmd cmd, bpfptr_t uattr, unsigned int size)
 	case BPF_PROG_LOAD:
 		err = bpf_prog_load(&attr, uattr, size);
 		break;
-	case BPF_PROG_LOAD_IU_BASE:
-		err = bpf_prog_load_iu_base(&attr, uattr);
+	case BPF_PROG_LOAD_REX_BASE:
+		err = bpf_prog_load_rex_base(&attr, uattr);
 		break;
-	case BPF_PROG_LOAD_IU:
-		err = bpf_prog_load_iu(&attr, uattr);
+	case BPF_PROG_LOAD_REX:
+		err = bpf_prog_load_rex(&attr, uattr);
 		break;
 	case BPF_OBJ_PIN:
 		err = bpf_obj_pin(&attr);

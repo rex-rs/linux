@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0 */
-#ifndef _ASM_X86_IU_UNWIND_H
-#define _ASM_X86_IU_UNWIND_H
+#ifndef _ASM_X86_REX_UNWIND_H
+#define _ASM_X86_REX_UNWIND_H
 
 #include <linux/linkage.h>
 
@@ -8,7 +8,7 @@
 
 struct bpf_insn;
 
-extern asmlinkage unsigned int iu_dispatcher_func(
+extern asmlinkage unsigned int rex_dispatcher_func(
 	const void *ctx,
 	const struct bpf_insn *insnsi,
 	unsigned int (*bpf_func)(const void *,
@@ -16,4 +16,4 @@ extern asmlinkage unsigned int iu_dispatcher_func(
 
 #endif /* !__ASSEMBLY__ */
 
-#endif /* _ASM_X86_IU_UNWIND_H */
+#endif /* _ASM_X86_REX_UNWIND_H */
