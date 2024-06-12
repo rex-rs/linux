@@ -6,7 +6,7 @@
 #include <asm/page.h>
 #include <asm/checksum.h>
 #include <asm/mce.h>
-#include <asm/iu_unwind.h>
+#include <asm/rex_unwind.h>
 
 #include <asm-generic/asm-prototypes.h>
 
