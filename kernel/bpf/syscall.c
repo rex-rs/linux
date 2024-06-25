@@ -3465,7 +3465,7 @@ static int rex_parse_dyn_syms(union bpf_attr *attr, u64 addr_start)
 		if (ret < 0)
 			goto free_name;
 
-		printk("Addr 0x%llx, %s\n", abs_addr, name);
+		printk("Addr 0x%llx, %s\n", (u64)abs_addr, name);
 
 		sym_addr = kallsyms_lookup_name(name);
 		if (!sym_addr) {
@@ -3474,7 +3474,7 @@ static int rex_parse_dyn_syms(union bpf_attr *attr, u64 addr_start)
 		}
 
 		*abs_addr = sym_addr;
-		printk("Addr 0x%llx updated to 0x%llx\n", abs_addr, sym_addr);
+		printk("Addr 0x%llx updated to 0x%llx\n", (u64)abs_addr, sym_addr);
 	}
 
 	ret = 0;
