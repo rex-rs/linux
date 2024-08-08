@@ -7,9 +7,13 @@
 
 #define PROC_FILE_NAME "kprobe_target"
 
+unsigned long noinline kprobe_target_func(unsigned long arg);
+
 enum kprobe_target_cmd {
 	KPROBE_TARGET_RUN_FUNC = 1313ULL,
 };
+
+
 
 /* Defined as global to force standard calling convention */
 unsigned long noinline kprobe_target_func(unsigned long arg)
