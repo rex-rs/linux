@@ -3107,15 +3107,11 @@ static int bpf_prog_load_rex(union bpf_attr *attr, bpfptr_t uattr)
 	}
 
 	prog->expected_attach_type = attr->expected_attach_type;
+	prog->sleepable = !!(attr->prog_flags & BPF_F_SLEEPABLE);
 	prog->aux->attach_btf = attach_btf;
 	prog->aux->attach_btf_id = attr->attach_btf_id;
 	prog->aux->dst_prog = dst_prog;
 	prog->aux->offload_requested = !!attr->prog_ifindex;
-	prog->aux->sleepable = attr->prog_flags & BPF_F_SLEEPABLE;
-
-	err = security_bpf_prog_alloc(prog->aux);
-	if (err)
-		goto free_prog;
 
 	prog->aux->user = get_current_user();
 	prog->len = attr->insn_cnt;
@@ -3129,7 +3125,7 @@ static int bpf_prog_load_rex(union bpf_attr *attr, bpfptr_t uattr)
 	prog->gpl_compatible = is_gpl ? 1 : 0;
 
 	if (bpf_prog_is_dev_bound(prog->aux)) {
-		err = bpf_prog_offload_init(prog, attr);
+		err = bpf_prog_dev_bound_init(prog, attr);
 		if (err)
 			goto free_prog_sec;
 	}
@@ -3202,8 +3198,8 @@ free_used_maps:
 	return err;
 free_prog_sec:
 	free_uid(prog->aux->user);
-	security_bpf_prog_free(prog->aux);
-free_prog:
+	security_bpf_prog_free(prog);
+// free_prog: TODO: Needs to fix error path
 	if (prog->aux->attach_btf)
 		btf_put(prog->aux->attach_btf);
 	bpf_prog_free(prog);
@@ -3598,15 +3594,11 @@ static int bpf_prog_load_rex_base(union bpf_attr *attr, bpfptr_t uattr)
 	}
 
 	prog->expected_attach_type = attr->expected_attach_type;
+	prog->sleepable = !!(attr->prog_flags & BPF_F_SLEEPABLE);
 	prog->aux->attach_btf = attach_btf;
 	prog->aux->attach_btf_id = attr->attach_btf_id;
 	prog->aux->dst_prog = dst_prog;
 	prog->aux->offload_requested = !!attr->prog_ifindex;
-	prog->aux->sleepable = attr->prog_flags & BPF_F_SLEEPABLE;
-
-	err = security_bpf_prog_alloc(prog->aux);
-	if (err)
-		goto free_prog;
 
 	prog->aux->user = get_current_user();
 	prog->len = attr->insn_cnt;
@@ -3627,7 +3619,7 @@ static int bpf_prog_load_rex_base(union bpf_attr *attr, bpfptr_t uattr)
 	atomic64_set(&prog->aux->refcnt, 1);
 	prog->gpl_compatible = is_gpl ? 1 : 0;
 	if (bpf_prog_is_dev_bound(prog->aux)) {
-		err = bpf_prog_offload_init(prog, attr);
+		err = bpf_prog_dev_bound_init(prog, attr);
 		if (err)
 			goto free_prog_sec;
 	}
@@ -3648,7 +3640,7 @@ static int bpf_prog_load_rex_base(union bpf_attr *attr, bpfptr_t uattr)
 	/* if (err < 0) */
 	/* 	goto free_used_maps; */
 
-    /* printk(KERN_WARNING "DJW %d\n", __LINE__); */
+	/* printk(KERN_WARNING "DJW %d\n", __LINE__); */
 	/* prog = bpf_prog_select_runtime(prog, &err); */
 	/* if (err < 0) */
 	/* 	goto free_used_maps; */
@@ -3759,7 +3751,7 @@ static int bpf_prog_load_rex_base(union bpf_attr *attr, bpfptr_t uattr)
 		if (p_vaddr_end > MAX_PROG_SZ)
 			goto error_phdr;
 
-		printk("p_vaddr=0x%lx, p_vaddr_start=0x%lx, p_vaddr_end=0x%lx", p_vaddr, p_vaddr_start, p_vaddr_end);
+		printk("p_vaddr=0x%llx, p_vaddr_start=0x%llx, p_vaddr_end=0x%llx", p_vaddr, p_vaddr_start, p_vaddr_end);
 
 		/* Enforce 4k alignment for now */
 		if (p_align != 1UL << PAGE_SHIFT)
@@ -3931,8 +3923,8 @@ error_ehdr:
 	fput(filp);
 free_prog_sec:
 	free_uid(prog->aux->user);
-	security_bpf_prog_free(prog->aux);
-free_prog:
+	security_bpf_prog_free(prog);
+// free_prog:
 	if (prog->aux->attach_btf)
 		btf_put(prog->aux->attach_btf);
 	bpf_prog_free(prog);

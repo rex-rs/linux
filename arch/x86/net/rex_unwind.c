@@ -26,6 +26,8 @@ DEFINE_PER_CPU_PAGE_ALIGNED(struct rex_stack, rex_stack_backing_store) __visible
 DECLARE_INIT_PER_CPU(rex_stack_backing_store);
 DEFINE_PER_CPU(void *, rex_stack_ptr);
 
+__nocfi noinline void notrace __noreturn rex_landingpad(char *msg);
+
 static int map_rex_stack(unsigned int cpu)
 {
 	char *stack = (char *)per_cpu_ptr(&rex_stack_backing_store, cpu);
