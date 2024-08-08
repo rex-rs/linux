@@ -393,7 +393,6 @@ static const struct bpf_func_proto bpf_trace_printk_proto = {
 };
 
 static DEFINE_RAW_SPINLOCK(trace_printk_lock);
-static char buf[BPF_TRACE_PRINTK_SIZE];
 
 // proto not needed since it does not go through the verifier
 BPF_CALL_5(bpf_trace_printk_rex, char *, fmt, u32, fmt_size, u64, arg1,
@@ -401,7 +400,10 @@ BPF_CALL_5(bpf_trace_printk_rex, char *, fmt, u32, fmt_size, u64, arg1,
 {
 	u64 args[MAX_TRACE_PRINTK_VARARGS] = { arg1, arg2, arg3 };
 	static char prep[BPF_TRACE_PRINTK_SIZE];
-	u32 *bin_args;
+	struct bpf_bprintf_data data = {
+		.get_bin_args	= true,
+		.get_buf	= true,
+	};
 	unsigned long flags;
 	int ret;
 
@@ -414,17 +416,17 @@ BPF_CALL_5(bpf_trace_printk_rex, char *, fmt, u32, fmt_size, u64, arg1,
 	memcpy(prep, fmt, fmt_size);
 	prep[fmt_size] = '\0';
 
-	ret = bpf_bprintf_prepare(prep, fmt_size + 1, args, &bin_args,
-			MAX_TRACE_PRINTK_VARARGS);
+	ret = bpf_bprintf_prepare(prep, fmt_size + 1, args,
+				  MAX_TRACE_PRINTK_VARARGS, &data);
 	if (ret < 0)
 		return ret;
 
-	ret = bstr_printf(buf, sizeof(buf), prep, bin_args);
+	ret = bstr_printf(data.buf, MAX_BPRINTF_BUF, prep, data.bin_args);
 
-	trace_bpf_trace_printk(buf);
+	trace_bpf_trace_printk(data.buf);
 	raw_spin_unlock_irqrestore(&trace_printk_lock, flags);
 
-	bpf_bprintf_cleanup();
+	bpf_bprintf_cleanup(&data);
 
 	return ret;
 }
