@@ -2063,6 +2063,14 @@ LIBBPF_API int libbpf_unregister_prog_handler(int handler_id);
  */
 LIBBPF_API int bpf_program__clone(struct bpf_program *prog, const struct bpf_prog_load_opts *opts);
 
+struct bpf_sec_def;
+struct bpf_sec_defs {
+	const struct bpf_sec_def *arr;
+	size_t size;
+};
+
+extern const struct bpf_sec_defs global_bpf_section_defs;
+
 #ifdef __cplusplus
 } /* extern "C" */
 #endif
