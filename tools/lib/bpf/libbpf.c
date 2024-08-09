@@ -9518,6 +9518,11 @@ static const struct bpf_sec_def section_defs[] = {
 	SEC_DEF("netfilter",		NETFILTER, BPF_NETFILTER, SEC_NONE),
 };
 
+const struct bpf_sec_defs global_bpf_section_defs LIBBPF_API = {
+	.arr = section_defs,
+	.size = ARRAY_SIZE(section_defs),
+};
+
 int libbpf_register_prog_handler(const char *sec,
 				 enum bpf_prog_type prog_type,
 				 enum bpf_attach_type exp_attach_type,
