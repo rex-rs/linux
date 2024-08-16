@@ -39,7 +39,7 @@ tprogs-y += task_fd_query
 tprogs-y += ibumad
 tprogs-y += hbm
 
-tprogs-y += tracex9
+# tprogs-y += tracex9
 
 tprogs-y += recursive
 
@@ -88,12 +88,12 @@ hbm-objs := hbm.o $(CGROUP_HELPERS)
 xdp_router_ipv4-objs := xdp_router_ipv4_user.o $(XDP_SAMPLE)
 
 recursive-objs := recursive_user.o
-tracex9-objs := tracex9_user.o $(TRACE_HELPERS)
+# tracex9-objs := tracex9_user.o $(TRACE_HELPERS)
 
 # Tell kbuild to always build the programs
 always-y := $(tprogs-y)
 always-y += hello_kern.o
-always-y += tracex9_kern.o
+# always-y += tracex9_kern.o
 always-y += sockex1_kern.o
 always-y += sockex2_kern.o
 always-y += sockex3_kern.o
