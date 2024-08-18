@@ -52,10 +52,10 @@ int main(int argc, char **argv)
 	}
 	int xdp_main_prog_fd = bpf_program__fd(prog);
 
-	if (bpf_set_link_xdp_fd(interface_idx, xdp_main_prog_fd, xdp_flags) < 0) {
+	if (bpf_xdp_attach(interface_idx, xdp_main_prog_fd, xdp_flags, NULL) <
+	    0) {
 		fprintf(stderr, "ERROR: xdp failed");
 	}
-
 
 cleanup:
 	bpf_link__destroy(link);
