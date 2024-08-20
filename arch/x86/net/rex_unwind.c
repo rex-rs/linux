@@ -16,7 +16,7 @@
 #define REX_STACK_ORDER 3
 #define REX_STACK_SIZE (PAGE_SIZE << REX_STACK_ORDER)
 
-// Align to page size, since the stack trace is broken anyway
+/* Align to page size, since the stack trace is broken anyway */
 struct rex_stack {
 	char stack[REX_STACK_SIZE];
 } __aligned(PAGE_SIZE);
@@ -69,7 +69,7 @@ module_init(init_rex_stack);
 DEFINE_PER_CPU(unsigned long, rex_old_sp);
 DEFINE_PER_CPU(unsigned long, rex_old_fp);
 
-__nocfi noinline void notrace __noreturn rex_landingpad(char *msg)
+__nocfi noinstr void __noreturn rex_landingpad(char *msg)
 {
 	/* Report error */
 	WARN(true, "Panic from inner-unikernel prog: %s\n", msg);
