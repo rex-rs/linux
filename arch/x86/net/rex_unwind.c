@@ -1,6 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 
-#include <linux/bug.h>
 #include <linux/compiler_types.h>
 #include <linux/module.h>
 #include <linux/percpu.h>
@@ -82,5 +81,5 @@ __nocfi noinline void notrace __noreturn rex_landingpad(char *msg)
 	);
 
 	/* Unreachable, noreturn */
-	BUG();
+	unreachable();
 }
