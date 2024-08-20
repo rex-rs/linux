@@ -8,7 +8,7 @@
 	.code64
 	.section .text, "ax"
 
-/* Dispatcher func for inner-unikernel */
+/* Dispatcher func for Rex */
 SYM_FUNC_START(rex_dispatcher_func)
 	/* save the callee-saved registers */
 	pushq %rbx
