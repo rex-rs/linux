@@ -10,16 +10,16 @@
 #include <asm/pgtable.h>
 
 /*
- * Usable stack is 8k large. 2 extra pages are needed for panic handlers
- * under extreme cases. Therefore, the actual vmap area per CPU is 5 pages
- * (20KB)
+ * Total stack is 8 pages (32k) large. 4 pages are reserved for kernel helpers/
+ * Therefore, the actual usable stack is 4 pages.
  */
-#define IU_STACK_ORDER 2
-#define IU_STACK_SIZE (PAGE_SIZE << IU_STACK_ORDER)
+#define REX_STACK_ORDER 3
+#define REX_STACK_SIZE (PAGE_SIZE << REX_STACK_ORDER)
 
+// Align to page size, since the stack trace is broken anyway
 struct rex_stack {
-	char stack[IU_STACK_SIZE];
-} __aligned(IU_STACK_SIZE);
+	char stack[REX_STACK_SIZE];
+} __aligned(PAGE_SIZE);
 
 DEFINE_PER_CPU_PAGE_ALIGNED(struct rex_stack, rex_stack_backing_store) __visible;
 DECLARE_INIT_PER_CPU(rex_stack_backing_store);
@@ -30,25 +30,25 @@ __nocfi noinline void notrace __noreturn rex_landingpad(char *msg);
 static int map_rex_stack(unsigned int cpu)
 {
 	char *stack = (char *)per_cpu_ptr(&rex_stack_backing_store, cpu);
-	struct page *pages[IU_STACK_SIZE / PAGE_SIZE];
+	struct page *pages[REX_STACK_SIZE / PAGE_SIZE];
 	void *va;
 	int i;
 
-	for (i = 0; i < IU_STACK_SIZE / PAGE_SIZE; i++) {
+	for (i = 0; i < REX_STACK_SIZE / PAGE_SIZE; i++) {
 		phys_addr_t pa = per_cpu_ptr_to_phys(stack + (i << PAGE_SHIFT));
 
 		pages[i] = pfn_to_page(pa >> PAGE_SHIFT);
 	}
 
-	va = vmap(pages, IU_STACK_SIZE / PAGE_SIZE, VM_MAP, PAGE_KERNEL);
+	va = vmap(pages, REX_STACK_SIZE / PAGE_SIZE, VM_MAP, PAGE_KERNEL);
 	if (!va)
 		return -ENOMEM;
 
 	/* Store actual TOS to avoid adjustment in the hotpath */
-	per_cpu(rex_stack_ptr, cpu) = va + IU_STACK_SIZE;
+	per_cpu(rex_stack_ptr, cpu) = va + REX_STACK_SIZE;
 
 	printk("Initialize rex_stack on CPU %d at 0x%llx\n", cpu,
-	       ((u64)va) + IU_STACK_SIZE);
+	       ((u64)va) + REX_STACK_SIZE);
 
 	return 0;
 }
