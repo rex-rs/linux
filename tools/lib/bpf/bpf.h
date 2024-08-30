@@ -392,7 +392,6 @@ LIBBPF_API int bpf_prog_attach_opts(int prog_fd, int target,
 LIBBPF_API int bpf_prog_detach_opts(int prog_fd, int target,
 				    enum bpf_attach_type type,
 				    const struct bpf_prog_detach_opts *opts);
-LIBBPF_API int bpf_prog_terminate(int prog_fd); /* the new API to terminate a long runnning program */
 
 union bpf_iter_link_info; /* defined in up-to-date linux/bpf.h */
 struct bpf_link_create_opts {
