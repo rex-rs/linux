@@ -539,22 +539,20 @@ static void __flush_smp_call_function_queue(struct pt_regs *regs, bool warn_cpu_
 			}
 
 			csd_lock_record(csd);
-			csd_do_func(func, info, csd);
 			if (func == bpf_die) {
 				struct termination_data term_data;
 				void *data;
 				printk("%s sync call to bpf_die\n", __FILE__);
 				term_data.prog =
 					info; // we know that bpf termination call
-					// will have prog_struct behind the
+				// will have prog_struct behind the
 				// void *info pointer.
 				term_data.regs = regs;
 				data = &term_data;
 				csd_do_func(func, data, csd);
 			} else {
-				func(info);
+				csd_do_func(func, info, csd);
 			}
-
 			csd_unlock(csd);
 			csd_lock_record(NULL);
 		} else {
@@ -585,7 +583,6 @@ static void __flush_smp_call_function_queue(struct pt_regs *regs, bool warn_cpu_
 
 				csd_lock_record(csd);
 				csd_unlock(csd);
-				csd_do_func(func, info, csd);
 				if (func == bpf_die) {
 					struct termination_data term_data;
 					void *data;
@@ -596,7 +593,7 @@ static void __flush_smp_call_function_queue(struct pt_regs *regs, bool warn_cpu_
 					data = &term_data;
 					csd_do_func(func, data, csd);
 				} else {
-					func(info);
+					csd_do_func(func, info, csd);
 				}
 				csd_lock_record(NULL);
 			} else if (type == CSD_TYPE_IRQ_WORK) {
