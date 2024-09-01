@@ -136,14 +136,14 @@ __maybe_unused void bpf_die(void* data)
          * and expecting this BPF program to be alive during the operation, will result in 
          * unexpected failure. 
         */
-        BUG_ON(kill_prog->saved_state->link == NULL);
-        bpf_perf_link_release(kill_prog->saved_state->link);
-        
-        // detach from hook point
-        while (atomic64_read(&kill_prog->aux->refcnt)>1){
-                atomic64_dec(&kill_prog->aux->refcnt);
-        }       
-        bpf_prog_put(kill_prog);
+        // BUG_ON(kill_prog->saved_state->link == NULL);
+        // bpf_perf_link_release(kill_prog->saved_state->link);
+        //
+        // // detach from hook point
+        // while (atomic64_read(&kill_prog->aux->refcnt)>1){
+        //         atomic64_dec(&kill_prog->aux->refcnt);
+        // }       
+        // bpf_prog_put(kill_prog);
 
 	if (per_cpu(bpf_termination_flag, cpu_id)  == 0){
 		printk("BPF program not in any helper/panic. Changing its IP\n");
