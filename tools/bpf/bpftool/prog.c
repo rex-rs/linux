@@ -2479,7 +2479,7 @@ static int do_help(int argc, char **argv)
 	}
 
 	fprintf(stderr,
-		"Usage: %1$s %2$s { show | list } [PROG]\n"
+		"Usage: %1$s %2$s { show | list | terminate } [PROG]\n"
 		"       %1$s %2$s dump xlated PROG [{ file FILE | [opcodes] [linum] [visual] }]\n"
 		"       %1$s %2$s dump jited  PROG [{ file FILE | [opcodes] [linum] }]\n"
 		"       %1$s %2$s pin   PROG FILE\n"
@@ -2539,6 +2539,7 @@ static const struct cmd cmds[] = {
 	{ "tracelog",	do_tracelog },
 	{ "run",	do_run },
 	{ "profile",	do_profile },
+	{ "terminate",  do_terminate },
 	{ 0 }
 };
 
