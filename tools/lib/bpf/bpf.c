@@ -521,15 +521,16 @@ int bpf_map_freeze(int fd)
 	return libbpf_err_errno(ret);
 }
 
-int bpf_prog_terminate( int prog_id )
+int bpf_prog_terminate(int prog_id)
 {
-       union bpf_attr attr;
+	union bpf_attr attr;
 	int res;
-       memset(&attr, 0, sizeof(attr));
-       attr.prog_id = prog_id;
-	printf("Calling bpf terminate from bpftool : bpf/bpf.c\n");	
-       res = sys_bpf(BPF_PROG_TERMINATE, &attr, sizeof(attr)); // goes to : kernel/bpf/syscall.c
-       return res; 
+	memset(&attr, 0, sizeof(attr));
+	attr.prog_id = prog_id;
+	printf("Calling bpf terminate from bpftool : bpf/bpf.c\n");
+	res = sys_bpf(BPF_PROG_TERMINATE, &attr,
+		      sizeof(attr)); // goes to : kernel/bpf/syscall.c
+	return res;
 }
 
 static int bpf_map_batch_common(int cmd, int fd, void  *in_batch,
