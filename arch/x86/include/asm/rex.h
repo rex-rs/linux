@@ -14,6 +14,8 @@ extern asmlinkage unsigned int rex_dispatcher_func(
 	unsigned int (*bpf_func)(const void *,
 				 const struct bpf_insn *));
 
+int arch_init_rex_stack(void);
+
 #endif /* !__ASSEMBLY__ */
 
 #endif /* _ASM_X86_REX_UNWIND_H */
