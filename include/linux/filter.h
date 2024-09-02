@@ -667,8 +667,8 @@ struct sk_filter {
 	struct bpf_prog	*prog;
 };
 
-
-void bpf_die(void* data); // handler for termination requests
+/* handler for termination requests */
+void rex_terminate(void* data);
 
 DECLARE_STATIC_KEY_FALSE(bpf_stats_enabled_key);
 
