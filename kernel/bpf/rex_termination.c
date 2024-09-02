@@ -1,8 +1,20 @@
 // SPDX-License-Identifier: GPL-2.0-only
+
 #include <linux/filter.h>
+
+/* Set watchdog period to 20s */
+#define WATCHDOG_PERIOD_MS 20000U
 
 /* used by rex_terminate to check for BPF's IP before issuing termination */
 DEFINE_PER_CPU(unsigned char, rex_termination_state);
+
+static struct timer_list watchdog_timer;
+
+static void watchdog_timer_fn(struct timer_list *timer)
+{
+	printk("rex_watchdog triggered\n");
+	mod_timer(timer, jiffies + msecs_to_jiffies(WATCHDOG_PERIOD_MS));
+}
 
 void rex_terminate(void *data)
 {
@@ -21,3 +33,13 @@ void rex_terminate(void *data)
 		per_cpu(rex_termination_state, cpu_id) = 2;
 	}
 }
+
+static int __init init_rex_termination(void)
+{
+	timer_setup(&watchdog_timer, watchdog_timer_fn, 0);
+	printk("Initialize rex_watchdog\n");
+	return mod_timer(&watchdog_timer,
+			 jiffies + msecs_to_jiffies(WATCHDOG_PERIOD_MS));
+}
+
+module_init(init_rex_termination);
