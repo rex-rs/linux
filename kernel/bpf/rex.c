@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 
+#define pr_fmt(fmt) "rex: " fmt
+
 #include <linux/filter.h>
 
 /* Set watchdog period to 20s */
@@ -34,12 +36,18 @@ void rex_terminate(void *data)
 	}
 }
 
-static int __init init_rex_termination(void)
+static int init_rex_watchdog(void)
 {
 	timer_setup(&watchdog_timer, watchdog_timer_fn, 0);
-	printk("Initialize rex_watchdog\n");
+	pr_info("Initialize rex_watchdog\n");
 	return mod_timer(&watchdog_timer,
 			 jiffies + msecs_to_jiffies(WATCHDOG_PERIOD_MS));
 }
 
-module_init(init_rex_termination);
+static int __init init_rex(void)
+{
+	int ret = arch_init_rex_stack();
+	return ret ? : init_rex_watchdog();
+}
+
+module_init(init_rex);

@@ -1,5 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 
+#define pr_fmt(fmt) "rex: " fmt
+
 #include <linux/compiler_types.h>
 #include <linux/module.h>
 #include <linux/percpu.h>
@@ -8,6 +10,7 @@
 
 #include <asm/page.h>
 #include <asm/pgtable.h>
+#include <asm/rex.h>
 
 /*
  * Total stack is 8 pages (32k) large. 4 pages are reserved for kernel helpers/
@@ -25,6 +28,13 @@ DEFINE_PER_CPU_PAGE_ALIGNED(struct rex_stack, rex_stack_backing_store) __visible
 DECLARE_INIT_PER_CPU(rex_stack_backing_store);
 DEFINE_PER_CPU(void *, rex_stack_ptr);
 
+DEFINE_PER_CPU(unsigned long, rex_old_sp);
+DEFINE_PER_CPU(unsigned long, rex_old_fp);
+
+/*
+ * Not supposed to be called by other kernel code, therefore keep prototype
+ * private
+ */
 __nocfi noinline void notrace __noreturn rex_landingpad(char *msg);
 
 static int map_rex_stack(unsigned int cpu)
@@ -47,13 +57,13 @@ static int map_rex_stack(unsigned int cpu)
 	/* Store actual TOS to avoid adjustment in the hotpath */
 	per_cpu(rex_stack_ptr, cpu) = va + REX_STACK_SIZE;
 
-	printk("Initialize rex_stack on CPU %d at 0x%llx\n", cpu,
+	pr_info("Initialize rex_stack on CPU %d at 0x%llx\n", cpu,
 	       ((u64)va) + REX_STACK_SIZE);
 
 	return 0;
 }
 
-static int __init init_rex_stack(void)
+int arch_init_rex_stack(void)
 {
 	int i, ret = 0;
 	for_each_online_cpu (i) {
@@ -63,11 +73,6 @@ static int __init init_rex_stack(void)
 	}
 	return ret;
 }
-
-module_init(init_rex_stack);
-
-DEFINE_PER_CPU(unsigned long, rex_old_sp);
-DEFINE_PER_CPU(unsigned long, rex_old_fp);
 
 __nocfi noinstr void __noreturn rex_landingpad(char *msg)
 {
