@@ -668,7 +668,7 @@ struct sk_filter {
 };
 
 
-void bpf_die(void* data); // handler for termination requests 
+void bpf_die(void* data); // handler for termination requests
 
 DECLARE_STATIC_KEY_FALSE(bpf_stats_enabled_key);
 
@@ -682,9 +682,9 @@ typedef unsigned int (*bpf_dispatcher_fn)(const void *ctx,
 					  unsigned int (*bpf_func)(const void *,
 								   const struct bpf_insn *));
 
-static __always_inline u32 __bpf_prog_run(const struct bpf_prog *prog,
-					  const void *ctx,
-					  bpf_dispatcher_fn dfunc)
+static __always_inline __nocfi u32 __bpf_prog_run(const struct bpf_prog *prog,
+					  	  const void *ctx,
+					  	  bpf_dispatcher_fn dfunc)
 {
 	u32 ret;
 	u32 cpu_id;
@@ -714,7 +714,7 @@ static __always_inline u32 __bpf_prog_run(const struct bpf_prog *prog,
 		/* if (prog->type == BPF_PROG_TYPE_KPROBE) */
 		/* 	printk("BPF dispatcher function overhead: %llu\n", completed_time - initial_time); */
 	}
-	prog->saved_state->cpu_id = -1; 
+	prog->saved_state->cpu_id = -1;
 	return ret;
 }
 
