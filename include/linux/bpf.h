@@ -32,7 +32,7 @@
 #include <linux/cfi.h>
 #include <asm/rqspinlock.h>
 
-#include <asm/rex_unwind.h>
+#include <asm/rex.h>
 
 struct bpf_verifier_env;
 struct bpf_verifier_log;
