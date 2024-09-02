@@ -51,7 +51,8 @@ static DEFINE_PER_CPU_SHARED_ALIGNED(struct llist_head, call_single_queue);
 
 static DEFINE_PER_CPU(atomic_t, trigger_backtrace) = ATOMIC_INIT(1);
 
-static void __flush_smp_call_function_queue(struct pt_regs *regs, bool warn_cpu_offline);
+static void __flush_smp_call_function_queue(struct pt_regs *regs,
+					    bool warn_cpu_offline);
 
 int smpcfd_prepare_cpu(unsigned int cpu)
 {
@@ -539,10 +540,10 @@ static void __flush_smp_call_function_queue(struct pt_regs *regs, bool warn_cpu_
 			}
 
 			csd_lock_record(csd);
-			if (func == bpf_die) {
+			if (func == rex_terminate) {
 				struct termination_data term_data;
 				void *data;
-				printk("%s sync call to bpf_die\n", __FILE__);
+				printk("%s sync call to rex_terminate\n", __FILE__);
 				term_data.prog =
 					info; // we know that bpf termination call
 				// will have prog_struct behind the
@@ -583,10 +584,10 @@ static void __flush_smp_call_function_queue(struct pt_regs *regs, bool warn_cpu_
 
 				csd_lock_record(csd);
 				csd_unlock(csd);
-				if (func == bpf_die) {
+				if (func == rex_terminate) {
 					struct termination_data term_data;
 					void *data;
-					printk("%s !sync call to bpf_die\n",
+					printk("%s !sync call to rex_terminate\n",
 					       __FILE__);
 					term_data.prog = info;
 					term_data.regs = regs;

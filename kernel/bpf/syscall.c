@@ -67,9 +67,6 @@ static DEFINE_SPINLOCK(map_idr_lock);
 static DEFINE_IDR(link_idr);
 static DEFINE_SPINLOCK(link_idr_lock);
 
-/* used by bpf_die to check for BPF's IP before issuing termination */
-DEFINE_PER_CPU(unsigned char, bpf_termination_flag);
-
 int sysctl_unprivileged_bpf_disabled __read_mostly =
 	IS_BUILTIN(CONFIG_BPF_UNPRIV_DEFAULT_OFF) ? 2 : 0;
 
@@ -118,44 +115,6 @@ int bpf_check_uarg_tail_zero(bpfptr_t uaddr,
 
 static void __bpf_prog_put_noref(struct bpf_prog *prog, bool deferred);
 static void bpf_perf_link_release(struct bpf_link *link);
-
-__maybe_unused void bpf_die(void* data)
-{
-	struct termination_data *term_data = data; 	
-	struct pt_regs *regs = term_data->regs;
-	struct bpf_prog *kill_prog = term_data->prog;
-        int cpu_id;
-        int prog_id = kill_prog->aux->id;
-        cpu_id = raw_smp_processor_id();
-        printk("bpf_die called on [CPU:%d] prog:%d\n", cpu_id, prog_id);
-        
-        /* TODO : 
-         * Currently, the delink code is only meant for TRACEPOINT type BPF programs. 
-         * Also, I am explicitly calling refcnt-- operation to make the bpf_prog_put
-         * release the prog_id and all other resources attached to this bpf program. 
-         * So if a program (which would have called bpf_prog_get) has acquired a reference 
-         * and expecting this BPF program to be alive during the operation, will result in 
-         * unexpected failure. 
-        */
-        // BUG_ON(kill_prog->saved_state->link == NULL);
-        // bpf_perf_link_release(kill_prog->saved_state->link);
-        //
-        // // detach from hook point
-        // while (atomic64_read(&kill_prog->aux->refcnt)>1){
-        //         atomic64_dec(&kill_prog->aux->refcnt);
-        // }       
-        // bpf_prog_put(kill_prog);
-
-	if (per_cpu(bpf_termination_flag, cpu_id)  == 0){
-		printk("BPF program not in any helper/panic. Changing its IP\n");
-		regs->ip = kill_prog->saved_state->unwinder_insn_off;
-	}
-	else{
-		printk("BPF program in helper/panic. Changing its termination flag\n");
-	  	per_cpu(bpf_termination_flag, cpu_id) = 2; 
-	}
-
-}
 
 const struct bpf_map_ops bpf_map_offload_ops = {
 	.map_meta_equal = bpf_map_meta_equal,
@@ -6886,15 +6845,16 @@ static int __sys_bpf(enum bpf_cmd cmd, bpfptr_t uattr, unsigned int size)
 		int cpu_id;
 		prog = bpf_prog_by_id(attr.prog_id);
 		if (IS_ERR(prog) || (cpu_id = prog->saved_state->cpu_id) < 0) {
-			printk("bpf prog_id : %d not found or not running! Not executing terminate.\n",
+			printk("bpf prog_id : %d not found or not running!"
+			       "Not executing terminate.\n",
 			       attr.prog_id);
 			err = -EINVAL;
 
 		} else {
-			printk("About to call bpf_die as IPI to CPU : %d\n",
+			printk("Sending rex_terminate IPI to CPU : %d\n",
 			       cpu_id);
-			smp_call_function_single(cpu_id, bpf_die, (void *)prog,
-						 1);
+			smp_call_function_single(cpu_id, rex_terminate,
+						 (void *)prog, 1);
 			err = 0;
 		}
 		break;
