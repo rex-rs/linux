@@ -57,6 +57,8 @@ ifeq ($(CONFIG_DMA_SHARED_BUFFER),y)
 obj-$(CONFIG_BPF_SYSCALL) += dmabuf_iter.o
 endif
 
+obj-$(CONFIG_BPF_SYSCALL) += rex.o
+
 CFLAGS_REMOVE_percpu_freelist.o = $(CC_FLAGS_FTRACE)
 CFLAGS_REMOVE_bpf_lru_list.o = $(CC_FLAGS_FTRACE)
 CFLAGS_REMOVE_queue_stack_maps.o = $(CC_FLAGS_FTRACE)
