@@ -9,5 +9,5 @@ else
         obj-$(CONFIG_BPF_JIT) += bpf_jit_comp.o
 endif
 
-obj-y += rex_unwind.o
+obj-y += rex.o
 obj-y += rex_unwind_$(BITS).o
