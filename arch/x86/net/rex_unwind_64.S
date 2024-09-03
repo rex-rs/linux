@@ -17,6 +17,9 @@ SYM_FUNC_START(rex_dispatcher_func)
 	pushq %r14
 	pushq %r15
 
+	/* Save bpf func */
+	movq %rdx, PER_CPU_VAR(rex_curr_prog)
+
 	/* save rsp and rbp */
 	movq %rsp, PER_CPU_VAR(rex_old_sp)
 	movq %rbp, PER_CPU_VAR(rex_old_fp)
@@ -24,6 +27,9 @@ SYM_FUNC_START(rex_dispatcher_func)
 	/* switch stack */
 	movq PER_CPU_VAR(rex_stack_ptr), %rsp
 	movq PER_CPU_VAR(rex_stack_ptr), %rbp
+
+	movq jiffies(%rip), %r11
+	movq %r11, PER_CPU_VAR(rex_prog_start_time)
 
 	/* invoke bpf func */
 	call *%rdx
@@ -33,6 +39,9 @@ SYM_INNER_LABEL(rex_exit, SYM_L_GLOBAL)
 	/* reset rsp and rbp based on saved value */
 	movq PER_CPU_VAR(rex_old_sp), %rsp
 	movq PER_CPU_VAR(rex_old_fp), %rbp
+
+	/* Reset bpf func */
+	movq $0, PER_CPU_VAR(rex_curr_prog)
 
 	/* restore the callee-saved registers */
 	popq %r15
