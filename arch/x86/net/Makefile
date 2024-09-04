@@ -10,4 +10,4 @@ else
 endif
 
 obj-y += rex.o
-obj-y += rex_unwind_$(BITS).o
+obj-y += rex_$(BITS).o

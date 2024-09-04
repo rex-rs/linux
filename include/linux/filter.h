@@ -669,6 +669,7 @@ struct sk_filter {
 
 /* handler for termination requests */
 void rex_terminate(void* data);
+DECLARE_PER_CPU(const struct bpf_prog *, rex_curr_prog);
 
 DECLARE_STATIC_KEY_FALSE(bpf_stats_enabled_key);
 
@@ -708,7 +709,9 @@ static __always_inline __nocfi u32 __bpf_prog_run(const struct bpf_prog *prog,
 	} else {
 		/* volatile u64 initial_time, completed_time; */
 		/* initial_time = ktime_get_mono_fast_ns(); */
+		this_cpu_write(rex_curr_prog, prog);
 		ret = dfunc(ctx, prog->insnsi, prog->bpf_func);
+		this_cpu_write(rex_curr_prog, NULL);
 		/* completed_time = ktime_get_mono_fast_ns(); */
 		/* barrier(); */
 		/* if (prog->type == BPF_PROG_TYPE_KPROBE) */
