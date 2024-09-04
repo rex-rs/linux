@@ -1,5 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 */
-
+/*
+ * X86-specific code for Rex support
+ */
 #define pr_fmt(fmt) "rex: " fmt
 
 #include <linux/compiler_types.h>
