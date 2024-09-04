@@ -685,7 +685,7 @@ int smp_call_function_single(int cpu, smp_call_func_t func, void *info,
 	 * csd_lock() on because the interrupt context uses the same csd
 	 * storage.
 	 */
-	WARN_ON_ONCE(!in_task());
+	WARN_ON_ONCE(!in_task() && func != rex_terminate);
 
 	csd = &csd_stack;
 	if (!wait) {
