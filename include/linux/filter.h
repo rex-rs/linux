@@ -718,7 +718,9 @@ static __always_inline __nocfi u32 __bpf_prog_run(const struct bpf_prog *prog,
 		u64 duration, start = sched_clock();
 		unsigned long flags;
 
+		this_cpu_write(rex_curr_prog, prog);
 		ret = dfunc(ctx, prog->insnsi, prog->bpf_func);
+		this_cpu_write(rex_curr_prog, NULL);
 
 		duration = sched_clock() - start;
 		if (likely(prog->stats)) {
