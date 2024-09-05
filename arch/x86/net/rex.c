@@ -70,8 +70,10 @@ int arch_init_rex_stack(void)
 	int i, ret = 0;
 	for_each_online_cpu (i) {
 		ret = map_rex_stack(i);
-		if (ret < 0)
+		if (ret < 0) {
+			pr_err("Failed to initialize rex stack on CPU %d\n", i);
 			break;
+		}
 	}
 	return ret;
 }
