@@ -37,7 +37,7 @@ DEFINE_PER_CPU(unsigned long, rex_old_fp);
  * Not supposed to be called by other kernel code, therefore keep prototype
  * private
  */
-__nocfi noinline void notrace __noreturn rex_landingpad(char *msg);
+__nocfi noinstr void __noreturn rex_landingpad(char *msg);
 
 static int map_rex_stack(unsigned int cpu)
 {
