@@ -1607,6 +1607,7 @@ struct rex_mem {
 
 struct rex_saved_states{
 	int cpu_id;
+	int loader_pid;
 	u64 unwinder_insn_off;
 	struct bpf_link *link;
 };

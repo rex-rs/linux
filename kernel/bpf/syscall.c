@@ -3172,6 +3172,7 @@ static int bpf_prog_load_rex(union bpf_attr *attr, bpfptr_t uattr)
 		(u64)base->mem.mem + (u64)attr->unwinder_insn_off;
 	printk("%s %d bpf_func : 0x%pF,  unwinder_insn_off: 0x%llx\n", __FILE__,
 	       __LINE__, prog->bpf_func, prog->saved_state->unwinder_insn_off);
+	prog->saved_state->loader_pid = task_pid_nr(current);
 
 	err = bpf_prog_alloc_id(prog);
 	if (err)

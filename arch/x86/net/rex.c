@@ -4,6 +4,7 @@
  */
 #define pr_fmt(fmt) "rex: " fmt
 
+#include <linux/bpf.h>
 #include <linux/compiler_types.h>
 #include <linux/module.h>
 #include <linux/percpu.h>
@@ -26,12 +27,15 @@ struct rex_stack {
 	char stack[REX_STACK_SIZE];
 } __aligned(PAGE_SIZE);
 
-DEFINE_PER_CPU_PAGE_ALIGNED(struct rex_stack, rex_stack_backing_store) __visible;
+DEFINE_PER_CPU_PAGE_ALIGNED(struct rex_stack, rex_stack_backing_store)
+__visible;
 DECLARE_INIT_PER_CPU(rex_stack_backing_store);
 DEFINE_PER_CPU(void *, rex_stack_ptr);
 
 DEFINE_PER_CPU(unsigned long, rex_old_sp);
 DEFINE_PER_CPU(unsigned long, rex_old_fp);
+
+DECLARE_PER_CPU(const struct bpf_prog *, rex_curr_prog);
 
 /*
  * Not supposed to be called by other kernel code, therefore keep prototype
@@ -60,7 +64,7 @@ static int map_rex_stack(unsigned int cpu)
 	per_cpu(rex_stack_ptr, cpu) = va + REX_STACK_SIZE;
 
 	pr_info("Initialize rex_stack on CPU %d at 0x%llx\n", cpu,
-	       ((u64)va) + REX_STACK_SIZE);
+		((u64)va) + REX_STACK_SIZE);
 
 	return 0;
 }
@@ -68,7 +72,7 @@ static int map_rex_stack(unsigned int cpu)
 int arch_init_rex_stack(void)
 {
 	int i, ret = 0;
-	for_each_online_cpu (i) {
+	for_each_online_cpu(i) {
 		ret = map_rex_stack(i);
 		if (ret < 0) {
 			pr_err("Failed to initialize rex stack on CPU %d\n", i);
@@ -80,15 +84,25 @@ int arch_init_rex_stack(void)
 
 __nocfi noinstr void __noreturn rex_landingpad(char *msg)
 {
+	struct task_struct *loader;
+
 	/* Report error */
 	WARN(true, "Panic from inner-unikernel prog: %s\n", msg);
 
+	loader = find_task_by_pid_ns(
+		this_cpu_read_stable(rex_curr_prog)->saved_state->loader_pid,
+		&init_pid_ns);
+
+	/* Reuse the seccomp signal for now */
+	if (loader)
+		force_sig_fault_to_task(SIGSYS, SYS_SECCOMP, NULL, loader);
+
 	/* Set an return value of 0 and jump to trampoline */
-	asm volatile(
-		"movq $0,%%rax\n\t"
-		"jmp rex_exit\n\t"
-		: : :"rax"
-	);
+	asm volatile("movq $0,%%rax\n\t"
+		     "jmp rex_exit\n\t"
+		     :
+		     :
+		     : "rax");
 
 	/* Unreachable, noreturn */
 	unreachable();
