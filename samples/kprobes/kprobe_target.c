@@ -19,6 +19,7 @@ enum kprobe_target_cmd {
 unsigned long noinline kprobe_target_func(unsigned long arg)
 {
 	barrier();
+	task_pid_vnr(current);
 	return arg;
 }
 
