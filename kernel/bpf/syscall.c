@@ -6840,24 +6840,24 @@ static int __sys_bpf(enum bpf_cmd cmd, bpfptr_t uattr, unsigned int size)
 		err = token_create(&attr);
 		break;
 	case BPF_PROG_TERMINATE:
-		printk("Starting terminate syscall prog_id : %d\n",
-		       attr.prog_id);
-		struct bpf_prog *prog;
-		int cpu_id;
-		prog = bpf_prog_by_id(attr.prog_id);
-		if (IS_ERR(prog) || (cpu_id = prog->saved_state->cpu_id) < 0) {
-			printk("bpf prog_id : %d not found or not running!"
-			       "Not executing terminate.\n",
-			       attr.prog_id);
-			err = -EINVAL;
-
-		} else {
-			printk("Sending rex_terminate IPI to CPU : %d\n",
-			       cpu_id);
-			smp_call_function_single(cpu_id, rex_terminate,
-						 (void *)prog, 1);
-			err = 0;
-		}
+		/* printk("Starting terminate syscall prog_id : %d\n", */
+		/*        attr.prog_id); */
+		/* struct bpf_prog *prog; */
+		/* int cpu_id; */
+		/* prog = bpf_prog_by_id(attr.prog_id); */
+		/* if (IS_ERR(prog) || (cpu_id = prog->saved_state->cpu_id) < 0) { */
+		/* 	printk("bpf prog_id : %d not found or not running!" */
+		/* 	       "Not executing terminate.\n", */
+		/* 	       attr.prog_id); */
+		/* 	err = -EINVAL; */
+		/**/
+		/* } else { */
+		/* 	printk("Sending rex_terminate IPI to CPU : %d\n", */
+		/* 	       cpu_id); */
+		/* 	smp_call_function_single(cpu_id, rex_terminate, */
+		/* 				 (void *)prog, 1); */
+		/* 	err = 0; */
+		/* } */
 		break;
 	default:
 		err = -EINVAL;
