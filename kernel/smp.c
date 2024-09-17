@@ -540,20 +540,20 @@ static void __flush_smp_call_function_queue(struct pt_regs *regs, bool warn_cpu_
 			}
 
 			csd_lock_record(csd);
-			if (func == rex_terminate) {
-				struct termination_data term_data;
-				void *data;
-				printk("%s sync call to rex_terminate\n", __FILE__);
-				term_data.prog =
-					info; // we know that bpf termination call
-				// will have prog_struct behind the
-				// void *info pointer.
-				term_data.regs = regs;
-				data = &term_data;
-				csd_do_func(func, data, csd);
-			} else {
+			/* if (func == rex_terminate) { */
+				/* struct termination_data term_data; */
+				/* void *data; */
+				/* printk("%s sync call to rex_terminate\n", __FILE__); */
+				/* term_data.prog = */
+				/* 	info; // we know that bpf termination call */
+				/* // will have prog_struct behind the */
+				/* // void *info pointer. */
+				/* term_data.regs = regs; */
+				/* data = &term_data; */
+				/* csd_do_func(func, data, csd); */
+			/* } else { */
 				csd_do_func(func, info, csd);
-			}
+			/* } */
 			csd_unlock(csd);
 			csd_lock_record(NULL);
 		} else {
@@ -584,18 +584,18 @@ static void __flush_smp_call_function_queue(struct pt_regs *regs, bool warn_cpu_
 
 				csd_lock_record(csd);
 				csd_unlock(csd);
-				if (func == rex_terminate) {
-					struct termination_data term_data;
-					void *data;
-					printk("%s !sync call to rex_terminate\n",
-					       __FILE__);
-					term_data.prog = info;
-					term_data.regs = regs;
-					data = &term_data;
-					csd_do_func(func, data, csd);
-				} else {
+				/* if (func == rex_terminate) { */
+					/* struct termination_data term_data; */
+					/* void *data; */
+					/* printk("%s !sync call to rex_terminate\n", */
+					/*        __FILE__); */
+					/* term_data.prog = info; */
+					/* term_data.regs = regs; */
+					/* data = &term_data; */
+					/* csd_do_func(func, data, csd); */
+				/* } else { */
 					csd_do_func(func, info, csd);
-				}
+				/* } */
 				csd_lock_record(NULL);
 			} else if (type == CSD_TYPE_IRQ_WORK) {
 				irq_work_single(csd);
@@ -685,7 +685,7 @@ int smp_call_function_single(int cpu, smp_call_func_t func, void *info,
 	 * csd_lock() on because the interrupt context uses the same csd
 	 * storage.
 	 */
-	WARN_ON_ONCE(!in_task() && func != rex_terminate);
+	WARN_ON_ONCE(!in_task());
 
 	csd = &csd_stack;
 	if (!wait) {
