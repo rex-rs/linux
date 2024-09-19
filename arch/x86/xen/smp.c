@@ -253,7 +253,7 @@ void xen_send_IPI_allbutself(int vector)
 
 static irqreturn_t xen_call_function_interrupt(int irq, void *dev_id)
 {
-	generic_smp_call_function_interrupt();
+	generic_smp_call_function_interrupt(dev_id);
 	inc_irq_stat(irq_call_count);
 
 	return IRQ_HANDLED;
@@ -261,7 +261,7 @@ static irqreturn_t xen_call_function_interrupt(int irq, void *dev_id)
 
 static irqreturn_t xen_call_function_single_interrupt(int irq, void *dev_id)
 {
-	generic_smp_call_function_single_interrupt();
+	generic_smp_call_function_single_interrupt(dev_id);
 	inc_irq_stat(irq_call_count);
 
 	return IRQ_HANDLED;
