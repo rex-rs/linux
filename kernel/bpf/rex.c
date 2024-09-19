@@ -20,6 +20,7 @@ DEFINE_PER_CPU(unsigned long, rex_prog_start_time);
 
 /* Current program on this CPU */
 DEFINE_PER_CPU(const struct bpf_prog *, rex_curr_prog);
+EXPORT_SYMBOL(rex_curr_prog);
 
 DEFINE_PER_CPU(struct hrtimer, rex_timer);
 
