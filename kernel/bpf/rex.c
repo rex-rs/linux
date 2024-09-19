@@ -67,7 +67,7 @@ void rex_terminate(const struct bpf_prog *prog)
 
 static enum hrtimer_restart timer_callback(struct hrtimer *timer)
 {
-	pr_info("Rex_watchdog triggered\n");
+	// pr_info("Rex_watchdog triggered\n");
 
 	check_running_progs();
 
