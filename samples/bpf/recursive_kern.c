@@ -55,7 +55,7 @@ int bpf_recursive(struct pt_regs *ctx)
 	ret = purgatory(ctx);
 	__u64 stop = bpf_ktime_get_ns();
 
-	bpf_printk("Time: %llu\n", stop - start);
+	bpf_printk("Time: %llu", stop - start);
 	return 0;
 }
 
