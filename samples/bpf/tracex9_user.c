@@ -31,7 +31,8 @@ int main(int argc, char **argv)
 
 	int interface_idx = atoi(argv[1]);
 	unsigned int xdp_flags = 0;
-	xdp_flags |= XDP_FLAGS_SKB_MODE;
+	/* xdp_flags |= XDP_FLAGS_SKB_MODE; */
+	xdp_flags |= XDP_FLAGS_DRV_MODE;
 
 	obj = bpf_object__open_file("tracex9_kern.o", NULL);
 	if (libbpf_get_error(obj)) {
