@@ -19,7 +19,7 @@ static noinline int purgatory(struct pt_regs *ctx)
 {
 	bpf_tail_call(ctx, &prog_map, 0);
 
-	bpf_printk("tailcall failed\n");
+	bpf_printk("tailcall failed in purgatory\n");
 	return 0;
 }
 
@@ -40,7 +40,7 @@ int calculate_tail_factorial(struct pt_regs *ctx)
 	state = (((__u64)accum) << 32) | n;
 	bpf_tail_call(ctx, &prog_map, 0);
 
-	bpf_printk("tailcall failed\n");
+	bpf_printk("tailcall failed in factorial\n");
 	return 0;
 }
 
