@@ -8,15 +8,24 @@
 #define PROC_FILE_NAME "kprobe_target"
 
 unsigned long noinline kprobe_target_func(unsigned long arg);
+unsigned long noinline kprobe_target_func_irq(unsigned long arg);
 
 enum kprobe_target_cmd {
-	KPROBE_TARGET_RUN_FUNC = 1313ULL,
+	KPROBE_TARGET_RUN_FUNC		= 1313ULL,
+	KPROBE_TARGET_RUN_FUNC_IRQ	= 1314ULL,
 };
 
 
 
 /* Defined as global to force standard calling convention */
 unsigned long noinline kprobe_target_func(unsigned long arg)
+{
+	barrier();
+	return arg;
+}
+
+/* Defined as global to force standard calling convention */
+unsigned long noinline kprobe_target_func_irq(unsigned long arg)
 {
 	barrier();
 	task_pid_vnr(current);
@@ -28,6 +37,8 @@ static long target_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	switch (cmd) {
 	case KPROBE_TARGET_RUN_FUNC:
 		return kprobe_target_func(arg);
+	case KPROBE_TARGET_RUN_FUNC_IRQ:
+		return kprobe_target_func_irq(arg);
 	default:
 		return -ENOSYS;
 	}
