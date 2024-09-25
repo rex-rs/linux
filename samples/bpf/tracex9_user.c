@@ -26,8 +26,6 @@ int main(int argc, char **argv)
 	struct bpf_link *link = NULL;
 	struct bpf_program *prog;
 	struct bpf_object *obj;
-	char filename[256];
-	int ret;
 
 	int interface_idx = atoi(argv[1]);
 	unsigned int xdp_flags = 0;
