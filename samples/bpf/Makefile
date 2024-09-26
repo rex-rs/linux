@@ -42,6 +42,9 @@ tprogs-y += hbm
 tprogs-y += tracex9
 
 tprogs-y += recursive
+tprogs-y += array_test
+tprogs-y += hash_test
+tprogs-y += static_u64_test
 
 # Libbpf dependencies
 LIBBPF_SRC = $(TOOLS_PATH)/lib/bpf
@@ -88,6 +91,9 @@ hbm-objs := hbm.o $(CGROUP_HELPERS)
 xdp_router_ipv4-objs := xdp_router_ipv4_user.o $(XDP_SAMPLE)
 
 recursive-objs := recursive_user.o
+array_test-objs := array_test_user.o
+hash_test-objs := hash_test_user.o
+static_u64_test-objs := static_u64_test_user.o
 tracex9-objs := tracex9_user.o $(TRACE_HELPERS)
 
 # Tell kbuild to always build the programs
@@ -139,6 +145,9 @@ COMMON_CFLAGS = $(TPROGS_USER_CFLAGS)
 TPROGS_LDFLAGS = $(TPROGS_USER_LDFLAGS)
 
 always-y += recursive_kern.o
+always-y += array_test_kern.o
+always-y += hash_test_kern.o
+always-y += static_u64_test_kern.o
 
 ifeq ($(ARCH), arm)
 # Strip all except -D__LINUX_ARM_ARCH__ option needed to handle linux
