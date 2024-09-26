@@ -6,7 +6,7 @@ char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
-    __uint(max_entries, 10);
+    __uint(max_entries, 5000);
     __type(key, int);
     __type(value, int);
 } my_map SEC(".maps");
@@ -14,7 +14,7 @@ struct {
 SEC("kprobe/kprobe_target_func")
 int bpf_prog1(void)
 {
-    int key = 0;
+    int key = 2500;
     __u64 start_time;
     __u64 end_time;
     __u64 duration;
