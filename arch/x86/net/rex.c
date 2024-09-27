@@ -97,6 +97,8 @@ __nocfi noinstr void __noreturn rex_landingpad(char *msg)
 	if (loader)
 		force_sig_fault_to_task(SIGSYS, SYS_SECCOMP, NULL, loader);
 
+	/* Reset the rex_termination_state set in rex panic handler */
+	this_cpu_write(rex_termination_state, 0);
 	/* Set an return value of 0 and jump to trampoline */
 	asm volatile("movq $0,%%rax\n\t"
 		     "jmp rex_exit\n\t"
