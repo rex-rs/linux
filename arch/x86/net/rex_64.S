@@ -31,11 +31,18 @@ SYM_FUNC_START(rex_dispatcher_func)
 	movq jiffies(%rip), %r11
 	movq %r11, PER_CPU_VAR(rex_prog_start_time)
 
+	/* Let the timer know we are in */
+	movq %rsi, PER_CPU_VAR(rex_curr_prog)
+
 	/* invoke bpf func */
 	call *%rdx
 
 /* Exit path: rex_landingpad also redirects the control flow here */
 SYM_INNER_LABEL(rex_exit, SYM_L_GLOBAL)
+
+	/* Let the timer know we are out */
+	movq $0, PER_CPU_VAR(rex_curr_prog)
+
 	/* reset rsp and rbp based on saved value */
 	movq PER_CPU_VAR(rex_old_sp), %rsp
 	movq PER_CPU_VAR(rex_old_fp), %rbp

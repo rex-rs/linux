@@ -683,24 +683,19 @@ typedef unsigned int (*bpf_dispatcher_fn)(const void *ctx,
 					  unsigned int (*bpf_func)(const void *,
 								   const struct bpf_insn *));
 
-static __always_inline __nocfi u32 __bpf_prog_run(const struct bpf_prog *prog,
+static __always_inline u32 __bpf_prog_run(const struct bpf_prog *prog,
 					  	  const void *ctx,
 					  	  bpf_dispatcher_fn dfunc)
 {
 	u32 ret;
-	u32 cpu_id;
 
 	cant_migrate();
-	cpu_id = raw_smp_processor_id();
-	prog->saved_state->cpu_id = cpu_id;
 	if (static_branch_unlikely(&bpf_stats_enabled_key)) {
 		struct bpf_prog_stats *stats;
 		u64 duration, start = sched_clock();
 		unsigned long flags;
 
-		this_cpu_write(rex_curr_prog, prog);
 		ret = dfunc(ctx, prog->insnsi, prog->bpf_func);
-		this_cpu_write(rex_curr_prog, NULL);
 
 		duration = sched_clock() - start;
 		stats = this_cpu_ptr(prog->stats);
@@ -711,23 +706,57 @@ static __always_inline __nocfi u32 __bpf_prog_run(const struct bpf_prog *prog,
 	} else {
 		/* volatile u64 initial_time, completed_time; */
 		/* initial_time = ktime_get_mono_fast_ns(); */
-		this_cpu_write(rex_curr_prog, prog);
 		ret = dfunc(ctx, prog->insnsi, prog->bpf_func);
-		this_cpu_write(rex_curr_prog, NULL);
 		/* completed_time = ktime_get_mono_fast_ns(); */
 		/* barrier(); */
 		/* if (prog->type == BPF_PROG_TYPE_KPROBE) */
 		/* 	printk("BPF dispatcher function overhead: %llu\n", completed_time - initial_time); */
 	}
-	prog->saved_state->cpu_id = -1;
+	return ret;
+}
+
+
+typedef unsigned int (*rex_dispatcher_fn)(const void *ctx,
+					  const struct bpf_prog *prog,
+					  unsigned int (*bpf_func)(const void *,
+								   const struct bpf_insn *));
+
+static __always_inline u32 __rex_prog_run(const struct bpf_prog *prog,
+					  	  const void *ctx,
+					  	  rex_dispatcher_fn dfunc)
+{
+	u32 ret;
+
+	cant_migrate();
+	if (static_branch_unlikely(&bpf_stats_enabled_key)) {
+		struct bpf_prog_stats *stats;
+		u64 duration, start = sched_clock();
+		unsigned long flags;
+
+		ret = dfunc(ctx, prog, prog->bpf_func);
+
+		duration = sched_clock() - start;
+		stats = this_cpu_ptr(prog->stats);
+		flags = u64_stats_update_begin_irqsave(&stats->syncp);
+		u64_stats_inc(&stats->cnt);
+		u64_stats_add(&stats->nsecs, duration);
+		u64_stats_update_end_irqrestore(&stats->syncp, flags);
+	} else {
+		/* volatile u64 initial_time, completed_time; */
+		/* initial_time = ktime_get_mono_fast_ns(); */
+		ret = dfunc(ctx, prog, prog->bpf_func);
+		/* completed_time = ktime_get_mono_fast_ns(); */
+		/* barrier(); */
+		/* if (prog->type == BPF_PROG_TYPE_KPROBE) */
+		/* 	printk("BPF dispatcher function overhead: %llu\n", completed_time - initial_time); */
+	}
 	return ret;
 }
 
 static __always_inline u32 bpf_prog_run(const struct bpf_prog *prog, const void *ctx)
 {
-	return __bpf_prog_run(prog, ctx,
-			      prog->no_bpf ? rex_dispatcher_func :
-					     bpf_dispatcher_nop_func);
+	return prog->no_bpf ? __rex_prog_run(prog, ctx, rex_dispatcher_func)
+			    : __bpf_prog_run(prog, ctx, bpf_dispatcher_nop_func);
 }
 
 /*
