@@ -3,10 +3,12 @@
 #define _ASM_X86_REX_UNWIND_H
 
 #include <linux/linkage.h>
+#include <linux/percpu-defs.h>
 
 #ifndef __ASSEMBLY__
 
 struct bpf_insn;
+DECLARE_PER_CPU(unsigned char, rex_termination_state);
 
 extern asmlinkage unsigned int rex_dispatcher_func(
 	const void *ctx,
