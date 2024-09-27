@@ -7,12 +7,12 @@
 
 #ifndef __ASSEMBLY__
 
-struct bpf_insn;
+struct bpf_prog;
 DECLARE_PER_CPU(unsigned char, rex_termination_state);
 
 extern asmlinkage unsigned int rex_dispatcher_func(
 	const void *ctx,
-	const struct bpf_insn *insnsi,
+	const struct bpf_prog *prog,
 	unsigned int (*bpf_func)(const void *,
 				 const struct bpf_insn *));
 
