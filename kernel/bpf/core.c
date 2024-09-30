@@ -711,7 +711,6 @@ void bpf_prog_kallsyms_add(struct bpf_prog *fp)
 	bpf_prog_ksym_set_addr(fp);
 	bpf_prog_ksym_set_name(fp);
 	fp->aux->ksym.prog = true;
-	printk("Adding bpf prog : %s to address : 0x%lx\n", fp->aux->ksym.name, fp->aux->ksym.start);
 
 	bpf_ksym_add(&fp->aux->ksym);
 
