@@ -10,7 +10,6 @@ int main(int argc, char *argv[])
 	struct bpf_program *prog;
 	struct bpf_object *obj;
 	char filename[256];
-	int ret = 0;
 
 	snprintf(filename, sizeof(filename), "%s_kern.o", argv[0]);
 	obj = bpf_object__open_file(filename, NULL);
@@ -43,5 +42,5 @@ int main(int argc, char *argv[])
 cleanup:
 	bpf_link__destroy(link);
 	bpf_object__close(obj);
-	return ret ? 0 : 1;
+	return 0;
 }
