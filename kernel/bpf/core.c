@@ -125,6 +125,7 @@ struct bpf_prog *bpf_prog_alloc_no_stats(unsigned int size, gfp_t gfp_extra_flag
 	if (!fp->active) {
 		vfree(fp);
 		kfree(aux);
+		kfree(saved_state);
 		return NULL;
 	}
 
