@@ -61,7 +61,7 @@ static int map_rex_stack(unsigned int cpu)
 		return -ENOMEM;
 
 	/* Store actual TOS to avoid adjustment in the hotpath */
-	per_cpu(rex_stack_ptr, cpu) = va + REX_STACK_SIZE;
+	per_cpu(rex_stack_ptr, cpu) = va + REX_STACK_SIZE - 8;
 
 	pr_info("Initialize rex_stack on CPU %d at 0x%llx\n", cpu,
 		((u64)va) + REX_STACK_SIZE);
