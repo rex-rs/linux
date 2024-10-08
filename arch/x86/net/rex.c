@@ -15,13 +15,6 @@
 #include <asm/pgtable.h>
 #include <asm/rex.h>
 
-/*
- * Total stack is 8 pages (32k) large. 4 pages are reserved for kernel helpers/
- * Therefore, the actual usable stack is 4 pages.
- */
-#define REX_STACK_ORDER 3
-#define REX_STACK_SIZE (PAGE_SIZE << REX_STACK_ORDER)
-
 /* Align to page size, since the stack trace is broken anyway */
 struct rex_stack {
 	char stack[REX_STACK_SIZE];
