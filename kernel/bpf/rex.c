@@ -53,6 +53,13 @@ void rex_terminate(const struct bpf_prog *prog)
 	WARN_ON(!in_hardirq());
 
 	regs = get_irq_regs();
+
+	/* We interrupted something that is not a rex program, probably some other softirq */
+	if (!arch_on_rex_stack(regs)) {
+		this_cpu_write(rex_termination_state, 2);
+		return;
+	}
+
 	prog_id = prog->aux->id;
 	pr_warn("Rex_terminate invoked for prog:%d\n", prog_id);
 
