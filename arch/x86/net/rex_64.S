@@ -12,16 +12,16 @@
 
 /* Dispatcher func for Rex */
 SYM_FUNC_START(rex_dispatcher_func)
-	/* save the callee-saved registers */
+	/* save the callee-saved registers and the frame pointer*/
+	pushq %rbp
 	pushq %rbx
 	pushq %r12
 	pushq %r13
 	pushq %r14
 	pushq %r15
 
-	/* save rsp and rbp */
+	/* save rsp */
 	movq %rsp, PER_CPU_VAR(rex_old_sp)
-	movq %rbp, PER_CPU_VAR(rex_old_fp)
 
 	/* switch stack */
 	movq PER_CPU_VAR(rex_stack_ptr), %rsp
@@ -43,16 +43,16 @@ SYM_INNER_LABEL(rex_exit, SYM_L_GLOBAL)
 	/* Let the timer know we are out */
 	movq $0, PER_CPU_VAR(rex_curr_prog)
 
-	/* reset rsp and rbp based on saved value */
+	/* reset rsp based on saved value */
 	movq PER_CPU_VAR(rex_old_sp), %rsp
-	movq PER_CPU_VAR(rex_old_fp), %rbp
 
-	/* restore the callee-saved registers */
+	/* restore the callee-saved registers and the frame pointer */
 	popq %r15
 	popq %r14
 	popq %r13
 	popq %r12
 	popq %rbx
+	popq %rbp
 
 	/* Return */
 	RET
