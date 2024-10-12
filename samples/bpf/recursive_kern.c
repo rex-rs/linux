@@ -5,8 +5,7 @@
 
 #define noinline __attribute__((__noinline__))
 
-/* accum = state[63:32], n = state[31:0] */
-static __u64 state;
+static __u32 n;
 
 struct {
 	__uint(type, BPF_MAP_TYPE_PROG_ARRAY);
@@ -19,28 +18,22 @@ static noinline int purgatory(struct pt_regs *ctx)
 {
 	bpf_tail_call(ctx, &prog_map, 0);
 
-	bpf_printk("tailcall failed in purgatory\n");
+	/* bpf_printk("tailcall failed in purgatory\n"); */
 	return 0;
 }
 
 SEC("kprobe/")
 int calculate_tail_factorial(struct pt_regs *ctx)
 {
-	/* Get the n and accum */
-	__u32 accum = state >> 32;
-	__u32 n = state & 0xFFFFFFFFULL;
-
 	/* Base case */
 	if(!n)
 		return 0;
 
-	/* Else, update accum and make tail call */
-	accum += n;
+	/* Else, make tail call */
 	n -= 1;
-	state = (((__u64)accum) << 32) | n;
 	bpf_tail_call(ctx, &prog_map, 0);
 
-	bpf_printk("tailcall failed in factorial\n");
+	/* bpf_printk("tailcall failed in factorial\n"); */
 	return 0;
 }
 
@@ -48,11 +41,11 @@ SEC("kprobe/kprobe_target_func")
 int bpf_recursive(struct pt_regs *ctx)
 {
 	int ret = 0;
-	/* accum = 0, n = ctx->rdi */
-	state = ctx->di & 0xFFFFFFFFULL;
+	/* n = ctx->rdi */
+	n = (__u32)ctx->di;
 
 	__u64 start = bpf_ktime_get_ns();
-	ret = purgatory(ctx);
+	purgatory(ctx);
 	__u64 stop = bpf_ktime_get_ns();
 
 	bpf_printk("Time: %llu", stop - start);
