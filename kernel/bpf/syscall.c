@@ -3441,7 +3441,7 @@ free_relas:
 	return ret;
 }
 
-static int rex_parse_dyn_syms(union bpf_attr *attr, u64 addr_start)
+static int rex_parse_dyn_syms(union bpf_attr *attr, u64 addr_start, struct bpf_prog *prog)
 {
 	int i = 0, ret = 0;
 	u64 syms_size = attr->nr_dyn_syms * sizeof(struct rex_dyn_sym);
@@ -3482,6 +3482,14 @@ static int rex_parse_dyn_syms(union bpf_attr *attr, u64 addr_start)
 		if (!sym_addr) {
 			ret = -EINVAL;
 			goto free_name;
+		}
+
+		/* A better way is to create a dedicated kprobe program type that can
+		 * override return values */
+		if (IS_ENABLED(CONFIG_BPF_KPROBE_OVERRIDE)) {
+			extern void just_return_func(void);
+			if (sym_addr == (u64)just_return_func)
+				prog->kprobe_override = 1;
 		}
 
 		*abs_addr = sym_addr;
@@ -3888,7 +3896,7 @@ static int bpf_prog_load_rex_base(union bpf_attr *attr, bpfptr_t uattr)
 	}
 
 	if (attr->nr_dyn_syms) {
-		err = rex_parse_dyn_syms(attr, addr_start);
+		err = rex_parse_dyn_syms(attr, addr_start, prog);
 		if (err)
 			goto free_used_maps;
 	}
