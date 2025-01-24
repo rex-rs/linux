@@ -3,7 +3,7 @@
 #define _ASM_X86_REX_UNWIND_H
 
 #include <linux/linkage.h>
-#include <linux/percpu-defs.h>
+#include <linux/percpu.h>
 
 #ifndef __ASSEMBLY__
 
@@ -15,8 +15,11 @@
 #define REX_STACK_SIZE (PAGE_SIZE << REX_STACK_ORDER)
 
 struct bpf_prog;
+struct bpf_insn;
+
 DECLARE_PER_CPU(unsigned char, rex_termination_state);
 DECLARE_PER_CPU(void *, rex_stack_ptr);
+DECLARE_PER_CPU(void *, rex_old_sp);
 
 extern asmlinkage unsigned int rex_dispatcher_func(
 	const void *ctx,
