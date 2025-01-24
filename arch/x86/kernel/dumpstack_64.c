@@ -51,6 +51,9 @@ const char *stack_type_name(enum stack_type type)
 		return "ENTRY_TRAMPOLINE";
 	}
 
+	if (type == STACK_TYPE_REX)
+		return "REX";
+
 	if (type >= STACK_TYPE_EXCEPTION && type <= STACK_TYPE_EXCEPTION_LAST)
 		return exception_stack_names[type - STACK_TYPE_EXCEPTION];
 
