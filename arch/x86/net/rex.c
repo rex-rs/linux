@@ -24,7 +24,7 @@ DEFINE_PER_CPU_PAGE_ALIGNED(struct rex_stack, rex_stack_backing_store)
 __visible;
 DEFINE_PER_CPU(void *, rex_stack_ptr);
 
-DEFINE_PER_CPU(unsigned long, rex_old_sp);
+DEFINE_PER_CPU(void *, rex_old_sp);
 
 DECLARE_PER_CPU(const struct bpf_prog *, rex_curr_prog);
 
