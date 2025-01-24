@@ -17,6 +17,7 @@
 #include <linux/nmi.h>
 
 #include <asm/cpu_entry_area.h>
+#include <asm/rex.h>
 #include <asm/stacktrace.h>
 
 static const char * const exception_stack_names[] = {
@@ -167,6 +168,38 @@ static __always_inline bool in_irq_stack(unsigned long *stack, struct stack_info
 	return true;
 }
 
+static __always_inline bool in_rex_stack(unsigned long *stack, struct stack_info *info)
+{
+	unsigned long *end = (unsigned long *)this_cpu_read(rex_stack_ptr);
+	unsigned long *begin;
+
+	/*
+	 * @end points directly to the top most stack entry to avoid a -8
+	 * adjustment in the stack switch hotpath. Adjust it back before
+	 * calculating @begin.
+	 */
+	end++;
+	begin = end - (IRQ_STACK_SIZE / sizeof(long));
+
+	/*
+	 * Due to the switching logic RSP can never be == @end because on
+	 * normal path the stack pointer will be set back to the top most
+	 * entry, and on exception path the stack will always contain more
+	 * than one frame
+	 */
+	if (stack < begin || stack >= end)
+		return false;
+
+	info->type	= STACK_TYPE_REX;
+	info->begin	= begin;
+	info->end	= end;
+
+	/* The next stack pointer is stored at the @rex_old_sp per-cpu var */
+	info->next_sp = (unsigned long *)this_cpu_read(rex_old_sp);
+
+	return true;
+}
+
 bool noinstr get_stack_info_noinstr(unsigned long *stack, struct task_struct *task,
 				    struct stack_info *info)
 {
@@ -183,6 +216,9 @@ bool noinstr get_stack_info_noinstr(unsigned long *stack, struct task_struct *ta
 		return true;
 
 	if (in_entry_stack(stack, info))
+		return true;
+
+	if (in_rex_stack(stack, info))
 		return true;
 
 	return false;
