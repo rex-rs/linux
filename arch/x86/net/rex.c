@@ -7,6 +7,7 @@
 #include <linux/bpf.h>
 #include <linux/compiler_types.h>
 #include <linux/module.h>
+#include <linux/objtool.h>
 #include <linux/percpu.h>
 #include <linux/printk.h>
 #include <linux/vmalloc.h>
@@ -24,8 +25,6 @@ DEFINE_PER_CPU_PAGE_ALIGNED(struct rex_stack, rex_stack_backing_store)
 __visible;
 DECLARE_INIT_PER_CPU(rex_stack_backing_store);
 DEFINE_PER_CPU(void *, rex_stack_ptr);
-
-DEFINE_PER_CPU(void *, rex_old_sp);
 
 DECLARE_PER_CPU(const struct bpf_prog *, rex_curr_prog);
 
@@ -77,6 +76,7 @@ int arch_init_rex_stack(void)
 __nocfi noinstr void __noreturn rex_landingpad(char *msg)
 {
 	struct task_struct *loader;
+	const void *stack_ptr = this_cpu_read_stable(rex_stack_ptr);
 
 	/* Report error */
 	WARN(true, "Panic from inner-unikernel prog: %s\n", msg);
@@ -92,12 +92,14 @@ __nocfi noinstr void __noreturn rex_landingpad(char *msg)
 	/* Reset the rex_termination_state set in rex panic handler */
 	this_cpu_write(rex_termination_state, 0);
 	/* Set an return value of 0 and jump to trampoline */
-	asm volatile("movq $0,%%rax\n\t"
+	asm volatile("movq $0, %%rax\n\t"
+		     "movq %0, %%rsp\n\t"
 		     "jmp rex_exit\n\t"
 		     :
-		     :
-		     : "rax");
+		     : "r"(stack_ptr)
+		     : "rax", "rsp");
 
 	/* Unreachable, noreturn */
 	unreachable();
 }
+STACK_FRAME_NON_STANDARD(rex_landingpad);
