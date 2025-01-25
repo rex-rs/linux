@@ -20,18 +20,16 @@ SYM_FUNC_START(rex_dispatcher_func)
 	pushq %r14
 	pushq %r15
 
-	/* save rsp */
-	movq %rsp, PER_CPU_VAR(rex_old_sp)
-
-	/* switch stack */
-	movq PER_CPU_VAR(rex_stack_ptr), %rsp
+	/* switch stack and save old rsp*/
 	movq PER_CPU_VAR(rex_stack_ptr), %rbp
+	movq %rsp, (%rbp)
+	movq %rbp, %rsp
 
 	/* record start time */
 	movq jiffies(%rip), %r11
 	movq %r11, PER_CPU_VAR(rex_prog_start_time)
 
-	/* Let the timer know we are in */
+	/* let the timer know we are in */
 	movq %rsi, PER_CPU_VAR(rex_curr_prog)
 
 	/* invoke bpf func */
@@ -39,12 +37,11 @@ SYM_FUNC_START(rex_dispatcher_func)
 
 /* Exit path: rex_landingpad also redirects the control flow here */
 SYM_INNER_LABEL(rex_exit, SYM_L_GLOBAL)
-
-	/* Let the timer know we are out */
+	/* let the timer know we are out */
 	movq $0, PER_CPU_VAR(rex_curr_prog)
 
-	/* reset rsp based on saved value */
-	movq PER_CPU_VAR(rex_old_sp), %rsp
+	/* pop old stack pointer into rsp */
+	popq %rsp
 
 	/* restore the callee-saved registers and the frame pointer */
 	popq %r15
@@ -54,8 +51,7 @@ SYM_INNER_LABEL(rex_exit, SYM_L_GLOBAL)
 	popq %rbx
 	popq %rbp
 
-	/* Return */
+	/* return */
 	RET
-
 SYM_FUNC_END(rex_dispatcher_func)
 EXPORT_SYMBOL(rex_dispatcher_func)
