@@ -2224,8 +2224,10 @@ static int find_prog_type(enum bpf_prog_type type, struct bpf_prog *prog)
 {
 	const struct bpf_prog_ops *ops;
 
-	if (type == BPF_PROG_TYPE_REX_BASE)
+	if (type == BPF_PROG_TYPE_REX_BASE) {
+		prog->type = type;
 		return 0;
+	}
 
 	if (type >= ARRAY_SIZE(bpf_prog_types))
 		return -EINVAL;
@@ -3192,7 +3194,6 @@ static int bpf_prog_load_rex(union bpf_attr *attr, bpfptr_t uattr)
 	 * Also, any failure handling from this point onwards must
 	 * be using bpf_prog_put() given the program is exposed.
 	 */
-	bpf_prog_kallsyms_add(prog);
 	perf_event_bpf_event(prog, PERF_BPF_EVENT_PROG_LOAD, 0);
 	bpf_audit_prog(prog, BPF_AUDIT_LOAD);
 
@@ -3221,7 +3222,7 @@ free_prog_sec:
 	return err;
 }
 
-static unsigned int __rex_prog_empty(const void *ctx,
+static __maybe_unused unsigned int __rex_prog_empty(const void *ctx,
 		const struct bpf_insn *insn)
 {
 	return 0;
@@ -3527,6 +3528,7 @@ static int bpf_prog_load_rex_base(union bpf_attr *attr, bpfptr_t uattr)
 	u64 addr_start = 0;
 	int *vm_size = NULL, *sec_off = NULL;
 	int total_vm = 0, offset, total_page = 0;
+	u64 rex_stext = 0, rex_etext = 0;
 
 	if (CHECK_ATTR(BPF_PROG_LOAD))
 		return -EINVAL;
@@ -3855,6 +3857,8 @@ static int bpf_prog_load_rex_base(union bpf_attr *attr, bpfptr_t uattr)
 		if ((prot & PROT_READ) && (prot & PROT_EXEC)) {
 			set_memory_ro((unsigned long)mem + offset, page_cnt);
 			set_memory_x((unsigned long)mem + offset, page_cnt);
+			rex_stext = (u64)mem + phdr[ph_i].p_vaddr;
+			rex_etext = rex_stext + phdr[ph_i].p_memsz;
 		} else if ((prot & PROT_READ) && (prot & PROT_WRITE)) {
 			set_memory_rw((unsigned long)mem + offset, page_cnt); // acutally not needed
 		} else if (prot & PROT_READ) {
@@ -3881,7 +3885,8 @@ static int bpf_prog_load_rex_base(union bpf_attr *attr, bpfptr_t uattr)
 	kfree(sec_off);
 	fput(filp);
 
-	prog->bpf_func = __rex_prog_empty;
+	prog->bpf_func = (unsigned int (*)(const void *, const struct bpf_insn *))rex_stext;
+	prog->jited_len = rex_etext - rex_stext;
 
 	if (attr->map_cnt) {
 		err = rex_parse_maps(attr, prog, addr_start);
