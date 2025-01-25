@@ -185,10 +185,9 @@ static __always_inline bool in_rex_stack(unsigned long *stack, struct stack_info
 	begin = end - (IRQ_STACK_SIZE / sizeof(long));
 
 	/*
-	 * Due to the switching logic RSP can never be == @end because on
-	 * normal path the stack pointer will be set back to the top most
-	 * entry, and on exception path the stack will always contain more
-	 * than one frame
+	 * Due to the switching logic RSP can never be == @end because the
+	 * final operation is 'popq %rsp' which means after that RSP points
+	 * to the original stack and not to @end.
 	 */
 	if (stack < begin || stack >= end)
 		return false;
@@ -197,8 +196,12 @@ static __always_inline bool in_rex_stack(unsigned long *stack, struct stack_info
 	info->begin	= begin;
 	info->end	= end;
 
-	/* The next stack pointer is stored at the @rex_old_sp per-cpu var */
-	info->next_sp = (unsigned long *)this_cpu_read(rex_old_sp);
+	/*
+	 * The next stack pointer is stored at the top of the irq stack
+	 * before switching to the irq stack. Actual stack entries are all
+	 * below that.
+	 */
+	info->next_sp = (unsigned long *)*(end - 1);
 
 	return true;
 }
