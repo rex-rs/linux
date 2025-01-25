@@ -19,7 +19,6 @@ struct bpf_insn;
 
 DECLARE_PER_CPU(unsigned char, rex_termination_state);
 DECLARE_PER_CPU(void *, rex_stack_ptr);
-DECLARE_PER_CPU(void *, rex_old_sp);
 
 extern asmlinkage unsigned int rex_dispatcher_func(
 	const void *ctx,
