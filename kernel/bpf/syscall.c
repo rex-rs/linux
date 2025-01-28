@@ -2324,7 +2324,13 @@ static void __bpf_prog_put_rcu(struct rcu_head *rcu)
 
 static void __bpf_prog_put_noref(struct bpf_prog *prog, bool deferred)
 {
-	bpf_prog_kallsyms_del_all(prog);
+	if (prog->no_bpf) {
+		rex_prog_kallsyms_del(prog);
+		kfree(prog->aux->rex_syms);
+	} else {
+		bpf_prog_kallsyms_del_all(prog);
+	}
+
 	btf_put(prog->aux->btf);
 	module_put(prog->aux->mod);
 	kvfree(prog->aux->jited_linfo);
@@ -3222,7 +3228,7 @@ free_prog_sec:
 	return err;
 }
 
-static __maybe_unused unsigned int __rex_prog_empty(const void *ctx,
+static unsigned int __rex_prog_empty(const void *ctx,
 		const struct bpf_insn *insn)
 {
 	return 0;
@@ -3497,6 +3503,68 @@ free_syms:
 	return ret;
 }
 
+static int rex_parse_text_syms(union bpf_attr *attr, u64 addr_start,
+			       struct bpf_prog *prog)
+{
+	int ret = 0;
+	u64 syms_size = attr->nr_text_syms * sizeof(struct rex_text_sym);
+	char name[KSYM_NAME_LEN] = { 0 };
+	struct rex_text_sym *text_syms = kmalloc_array(
+		attr->nr_text_syms, sizeof(*text_syms), GFP_KERNEL);
+	struct bpf_ksym *ksyms;
+
+	if (!text_syms)
+		return -ENOMEM;
+
+	ksyms = kmalloc_array(attr->nr_text_syms, sizeof(*ksyms), GFP_KERNEL);
+	if (!ksyms) {
+		ret = -ENOMEM;
+		goto free_text_syms;
+	}
+
+	if (copy_from_bpfptr(text_syms, USER_BPFPTR((void *)attr->text_syms),
+			     syms_size) != 0) {
+		ret = -EFAULT;
+		goto free_ksyms;
+	}
+
+	for (int i = 0; i < attr->nr_text_syms; i++) {
+		u64 abs_addr = addr_start + text_syms[i].offset;
+		char *sym = ksyms[i].name;
+		const char *end = sym + KSYM_NAME_LEN;
+
+		memset(name, 0, KSYM_NAME_LEN);
+		ret = strncpy_from_user(name, text_syms[i].symbol,
+					KSYM_NAME_LEN);
+		if (ret == KSYM_NAME_LEN)
+			ret = -E2BIG;
+		if (ret < 0)
+			goto free_ksyms;
+
+		ksyms->prog = true;
+		ksyms[i].start = abs_addr;
+		ksyms[i].end = abs_addr + text_syms[i].size;
+
+		sym += snprintf(sym, KSYM_NAME_LEN, "rex_prog_");
+		sym = bin2hex(sym, prog->tag, sizeof(prog->tag));
+
+		snprintf(sym, (size_t)(end - sym), "::%s", name);
+	}
+
+	prog->aux->rex_syms = ksyms;
+	prog->aux->nr_syms = attr->nr_text_syms;
+	ret = 0;
+
+	/* Don't free ksyms on success as we have already given away ownership */
+	goto free_text_syms;
+
+free_ksyms:
+	kfree(ksyms);
+free_text_syms:
+	kfree(text_syms);
+	return ret;
+}
+
 #define MAX_PROG_SZ (8192 << 4)
 static int bpf_prog_load_rex_base(union bpf_attr *attr, bpfptr_t uattr)
 {
@@ -3519,7 +3587,6 @@ static int bpf_prog_load_rex_base(union bpf_attr *attr, bpfptr_t uattr)
 	u64 addr_start = 0;
 	int *vm_size = NULL, *sec_off = NULL;
 	int total_vm = 0, offset, total_page = 0;
-	u64 rex_stext = 0, rex_etext = 0;
 
 	if (CHECK_ATTR(BPF_PROG_LOAD))
 		return -EINVAL;
@@ -3559,6 +3626,10 @@ static int bpf_prog_load_rex_base(union bpf_attr *attr, bpfptr_t uattr)
 		return -EPERM;
 	if (is_perfmon_prog_type(type) && !perfmon_capable())
 		return -EPERM;
+
+	/* Userspace should always supply symbol table */
+	if (!attr->nr_text_syms)
+		return -EINVAL;
 
 	/* attach_prog_fd/attach_btf_obj_fd can specify fd of either bpf_prog
 	 * or btf, we need to check which one it is
@@ -3848,8 +3919,6 @@ static int bpf_prog_load_rex_base(union bpf_attr *attr, bpfptr_t uattr)
 		if ((prot & PROT_READ) && (prot & PROT_EXEC)) {
 			set_memory_ro((unsigned long)mem + offset, page_cnt);
 			set_memory_x((unsigned long)mem + offset, page_cnt);
-			rex_stext = (u64)mem + phdr[ph_i].p_vaddr;
-			rex_etext = rex_stext + phdr[ph_i].p_memsz;
 		} else if ((prot & PROT_READ) && (prot & PROT_WRITE)) {
 			set_memory_rw((unsigned long)mem + offset, page_cnt); // acutally not needed
 		} else if (prot & PROT_READ) {
@@ -3876,8 +3945,11 @@ static int bpf_prog_load_rex_base(union bpf_attr *attr, bpfptr_t uattr)
 	kfree(sec_off);
 	fput(filp);
 
-	prog->bpf_func = (unsigned int (*)(const void *, const struct bpf_insn *))rex_stext;
-	prog->jited_len = rex_etext - rex_stext;
+	prog->bpf_func = __rex_prog_empty;
+	prog->jited_len = 0;
+
+	BUILD_BUG_ON(sizeof(prog->tag) != sizeof(unsigned long));
+	ptr_to_hashval((const void *)addr_start, (unsigned long *)&prog->tag);
 
 	if (attr->map_cnt) {
 		err = rex_parse_maps(attr, prog, addr_start);
@@ -3897,6 +3969,10 @@ static int bpf_prog_load_rex_base(union bpf_attr *attr, bpfptr_t uattr)
 			goto free_used_maps;
 	}
 
+	err = rex_parse_text_syms(attr, addr_start, prog);
+	if (err)
+		goto free_used_maps;
+
 	err = bpf_prog_alloc_id(prog);
 	if (err)
 		goto free_used_maps;
@@ -3915,7 +3991,7 @@ static int bpf_prog_load_rex_base(union bpf_attr *attr, bpfptr_t uattr)
 	 * Also, any failure handling from this point onwards must
 	 * be using bpf_prog_put() given the program is exposed.
 	 */
-	bpf_prog_kallsyms_add(prog);
+	rex_prog_kallsyms_add(prog);
 	perf_event_bpf_event(prog, PERF_BPF_EVENT_PROG_LOAD, 0);
 	bpf_audit_prog(prog, BPF_AUDIT_LOAD);
 

@@ -747,6 +747,20 @@ void bpf_prog_kallsyms_del(struct bpf_prog *fp)
 #endif
 }
 
+void rex_prog_kallsyms_add(struct bpf_prog *fp)
+{
+	for (int i = 0; i < fp->aux->nr_syms; i++) {
+		bpf_ksym_add(&fp->aux->rex_syms[i]);
+	}
+}
+
+void rex_prog_kallsyms_del(struct bpf_prog *fp)
+{
+	for (int i = 0; i < fp->aux->nr_syms; i++) {
+		bpf_ksym_del(&fp->aux->rex_syms[i]);
+	}
+}
+
 static struct bpf_ksym *bpf_ksym_find(unsigned long addr)
 {
 	struct latch_tree_node *n;
