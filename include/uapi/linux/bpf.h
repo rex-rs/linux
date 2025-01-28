@@ -1470,8 +1470,8 @@ struct rex_rela_dyn {
 };
 
 struct rex_dyn_sym {
-	__u64	offset;
-	__u64	symbol;
+	__u64			offset;
+	const char __user	*symbol;
 };
 
 union bpf_attr {
@@ -1582,8 +1582,8 @@ union bpf_attr {
 				__aligned_u64	map_offs;	/* offsets of map relocs */
 				__aligned_u64	dyn_relas;	/* ptr to dynamic rela info */
 				__aligned_u64	nr_dyn_relas;	/* nr of dyn rela entries */
-				__aligned_u64	dyn_syms; /* ptr to dyn sym entries */
-				__aligned_u64	nr_dyn_syms; /* nr of dyn sym entries */
+				__aligned_u64	dyn_syms;	/* ptr to dyn sym entries */
+				__aligned_u64	nr_dyn_syms;	/* nr of dyn sym entries */
 				__u32		rustfd;		/* file descriptor of Rust Program */
 				__u32		map_cnt;	/* length map reloc array */	
 			};
