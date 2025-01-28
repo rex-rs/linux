@@ -1466,6 +1466,9 @@ struct bpf_prog *bpf_prog_ksym_find(unsigned long addr);
 void bpf_prog_kallsyms_add(struct bpf_prog *fp);
 void bpf_prog_kallsyms_del(struct bpf_prog *fp);
 
+void rex_prog_kallsyms_add(struct bpf_prog *fp);
+void rex_prog_kallsyms_del(struct bpf_prog *fp);
+
 #else /* CONFIG_BPF_JIT */
 
 static inline bool ebpf_jit_enabled(void)
@@ -1545,6 +1548,15 @@ struct bpf_prog *bpf_jit_blind_constants(struct bpf_verifier_env *env, struct bp
 static inline void bpf_jit_prog_release_other(struct bpf_prog *fp, struct bpf_prog *fp_other)
 {
 }
+
+static inline void rex_prog_kallsyms_add(struct bpf_prog *fp)
+{
+}
+
+static inline void rex_prog_kallsyms_del(struct bpf_prog *fp)
+{
+}
+
 #endif /* CONFIG_BPF_JIT */
 
 void bpf_prog_kallsyms_del_all(struct bpf_prog *fp);
