@@ -3443,21 +3443,15 @@ static int rex_parse_dyn_syms(union bpf_attr *attr, u64 addr_start, struct bpf_p
 	u64 syms_size = attr->nr_dyn_syms * sizeof(struct rex_dyn_sym);
 	struct rex_dyn_sym *syms = kmalloc_array(attr->nr_dyn_syms,
 		sizeof(*syms), GFP_KERNEL);
-	char *name = NULL;
+	char name[KSYM_NAME_LEN] = { 0 };
 
 	if (!syms)
 		return -ENOMEM;
 
-	name = kmalloc(KSYM_NAME_LEN, GFP_KERNEL);
-	if (!name) {
-		ret = -ENOMEM;
-		goto free_syms;
-	}
-
 	if (copy_from_bpfptr(syms, USER_BPFPTR((void *)attr->dyn_syms),
 			syms_size) != 0) {
 		ret = -EFAULT;
-		goto free_name;
+		goto free_syms;
 	}
 
 	for (i = 0; i < attr->nr_dyn_syms; i++) {
@@ -3465,19 +3459,18 @@ static int rex_parse_dyn_syms(union bpf_attr *attr, u64 addr_start, struct bpf_p
 		u64 sym_addr;
 
 		memset(name, 0, KSYM_NAME_LEN);
-		ret = strncpy_from_user(name, (const char __user *) syms[i].symbol,
-			KSYM_NAME_LEN);
+		ret = strncpy_from_user(name, syms[i].symbol, KSYM_NAME_LEN);
 		if (ret == KSYM_NAME_LEN)
 			ret = -E2BIG;
 		if (ret < 0)
-			goto free_name;
+			goto free_syms;
 
 		printk("Addr 0x%llx, %s\n", (u64)abs_addr, name);
 
 		sym_addr = kallsyms_lookup_name(name);
 		if (!sym_addr) {
 			ret = -EINVAL;
-			goto free_name;
+			goto free_syms;
 		}
 
 		/* A better way is to create a dedicated kprobe program type that can
@@ -3494,8 +3487,6 @@ static int rex_parse_dyn_syms(union bpf_attr *attr, u64 addr_start, struct bpf_p
 
 	ret = 0;
 
-free_name:
-	kfree(name);
 free_syms:
 	kfree(syms);
 	return ret;
