@@ -1416,6 +1416,9 @@ bpf_address_lookup(unsigned long addr, unsigned long *size,
 void bpf_prog_kallsyms_add(struct bpf_prog *fp);
 void bpf_prog_kallsyms_del(struct bpf_prog *fp);
 
+void rex_prog_kallsyms_add(struct bpf_prog *fp);
+void rex_prog_kallsyms_del(struct bpf_prog *fp);
+
 #else /* CONFIG_BPF_JIT */
 
 static inline bool ebpf_jit_enabled(void)
@@ -1485,6 +1488,14 @@ static inline void bpf_prog_kallsyms_add(struct bpf_prog *fp)
 }
 
 static inline void bpf_prog_kallsyms_del(struct bpf_prog *fp)
+{
+}
+
+static inline void rex_prog_kallsyms_add(struct bpf_prog *fp)
+{
+}
+
+static inline void rex_prog_kallsyms_del(struct bpf_prog *fp)
 {
 }
 
