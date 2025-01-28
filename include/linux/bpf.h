@@ -1548,7 +1548,13 @@ struct bpf_prog_aux {
 #ifdef CONFIG_FINEIBT
 	struct bpf_ksym ksym_prefix;
 #endif
-	struct bpf_ksym ksym;
+	union {
+		struct bpf_ksym ksym;
+		struct {
+			struct bpf_ksym *rex_syms;
+			u64 nr_syms;
+		};
+	};
 	const struct bpf_prog_ops *ops;
 	struct bpf_map **used_maps;
 	struct mutex used_maps_mutex; /* mutex for used_maps and used_map_cnt */
