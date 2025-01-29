@@ -3516,7 +3516,8 @@ static int rex_parse_text_syms(union bpf_attr *attr, u64 addr_start,
 	if (!text_syms)
 		return -ENOMEM;
 
-	ksyms = kmalloc_array(attr->nr_text_syms, sizeof(*ksyms), GFP_KERNEL);
+	ksyms = kmalloc_array(attr->nr_text_syms, sizeof(*ksyms),
+			      GFP_KERNEL | __GFP_ZERO);
 	if (!ksyms) {
 		ret = -ENOMEM;
 		goto free_text_syms;
@@ -3541,14 +3542,15 @@ static int rex_parse_text_syms(union bpf_attr *attr, u64 addr_start,
 		if (ret < 0)
 			goto free_ksyms;
 
-		ksyms->prog = true;
+		ksyms[i].prog = true;
 		ksyms[i].start = abs_addr;
 		ksyms[i].end = abs_addr + text_syms[i].size;
 
 		sym += snprintf(sym, KSYM_NAME_LEN, "rex_prog_");
 		sym = bin2hex(sym, prog->tag, sizeof(prog->tag));
-
 		snprintf(sym, (size_t)(end - sym), "::%s", name);
+
+		INIT_LIST_HEAD(&ksyms[i].lnode);
 	}
 
 	prog->aux->rex_syms = ksyms;
