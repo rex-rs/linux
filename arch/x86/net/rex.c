@@ -73,18 +73,6 @@ int arch_init_rex_stack(void)
 	return ret;
 }
 
-static noinline __naked void __noreturn __rex_landingpad(void)
-{
-	/* Set an return value of 0 and jump to trampoline */
-	asm volatile("movq $0, %%rax\n\t"
-		     "movq %0, %%rsp\n\t"
-		     "jmp rex_exit\n\t"
-		     :
-		     : "r"(this_cpu_read_stable(rex_stack_ptr))
-		     : "rax", "rsp");
-}
-STACK_FRAME_NON_STANDARD(__rex_landingpad);
-
 void __noreturn rex_landingpad(char *msg)
 {
 	struct task_struct *loader;
@@ -103,7 +91,7 @@ void __noreturn rex_landingpad(char *msg)
 	/* Reset the rex_termination_state set in rex panic handler */
 	this_cpu_write(rex_termination_state, 0);
 
-	asm volatile("jmp __rex_landingpad");
+	asm volatile("jmp rex_landingpad_asm");
 	/* Unreachable, noreturn */
 	unreachable();
 }
