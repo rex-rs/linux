@@ -5,6 +5,7 @@
 #include <linux/export.h>
 #include <linux/linkage.h>
 #include <asm/errno.h>
+#include <asm/nospec-branch.h>
 #include <asm/percpu.h>
 
 	.code64
@@ -33,7 +34,7 @@ SYM_FUNC_START(rex_dispatcher_func)
 	movq %rsi, PER_CPU_VAR(rex_curr_prog)
 
 	/* invoke bpf func */
-	call *%rdx
+	CALL_NOSPEC rdx
 
 /* Exit path: rex_landingpad also redirects the control flow here */
 SYM_INNER_LABEL(rex_exit, SYM_L_GLOBAL)
