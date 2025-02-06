@@ -56,3 +56,11 @@ SYM_INNER_LABEL(rex_exit, SYM_L_GLOBAL)
 	RET
 SYM_FUNC_END(rex_dispatcher_func)
 EXPORT_SYMBOL(rex_dispatcher_func)
+
+/* Set an return value of 0, reset stack, and jump to trampoline */
+SYM_FUNC_START(rex_landingpad_asm)
+	movq $0, %rax
+	movq PER_CPU_VAR(rex_stack_ptr), %rsp
+	jmp rex_exit
+SYM_FUNC_END(rex_landingpad_asm)
+STACK_FRAME_NON_STANDARD(rex_landingpad_asm);
