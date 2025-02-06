@@ -90,7 +90,7 @@ void __noreturn rex_landingpad(char *msg)
 	struct task_struct *loader;
 
 	/* Report error */
-	WARN(true, "Panic from inner-unikernel prog: %s\n", msg);
+	WARN(true, "Panic from Rex prog: %s\n", msg);
 
 	loader = find_task_by_pid_ns(
 		this_cpu_read_stable(rex_curr_prog)->saved_state->loader_pid,
