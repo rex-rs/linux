@@ -76,9 +76,14 @@ int arch_init_rex_stack(void)
 void __noreturn rex_landingpad(char *msg)
 {
 	struct task_struct *loader;
+	DEFINE_RATELIMIT_STATE(rex_rs, DEFAULT_RATELIMIT_INTERVAL,
+			       DEFAULT_RATELIMIT_BURST);
 
 	/* Report error */
-	WARN(true, "Panic from Rex prog: %s\n", msg);
+	if (__ratelimit(&rex_rs)) {
+		pr_err("Panic from Rex prog: %s\n", msg);
+		dump_stack();
+	}
 
 	loader = find_task_by_pid_ns(
 		this_cpu_read_stable(rex_curr_prog)->saved_state->loader_pid,
