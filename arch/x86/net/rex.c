@@ -73,6 +73,11 @@ int arch_init_rex_stack(void)
 	return ret;
 }
 
+/* Do not declare rex_landingpad_asm() in header file since it should only be
+ * called from rex_landingpad() 
+ */
+asmlinkage void __noreturn rex_landingpad_asm(void);
+
 void __noreturn rex_landingpad(char *msg)
 {
 	struct task_struct *loader;
@@ -96,7 +101,6 @@ void __noreturn rex_landingpad(char *msg)
 	/* Reset the rex_termination_state set in rex panic handler */
 	this_cpu_write(rex_termination_state, 0);
 
-	asm volatile("jmp rex_landingpad_asm");
-	/* Unreachable, noreturn */
-	unreachable();
+	/* Handle the rest fixups */
+	rex_landingpad_asm();
 }
