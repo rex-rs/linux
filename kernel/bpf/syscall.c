@@ -3157,7 +3157,7 @@ static int bpf_prog_load_rex(union bpf_attr *attr, bpfptr_t uattr)
 
 	prog->no_bpf = 1;
 
-	// This gets the refcnt
+	/* This gets the refcnt */
 	base = bpf_prog_get(attr->base_prog_fd);
 	if (IS_ERR(base)) {
 		err = PTR_ERR(base);
@@ -3174,12 +3174,8 @@ static int bpf_prog_load_rex(union bpf_attr *attr, bpfptr_t uattr)
 	prog->bpf_func = (void *)((u64)base->mem.mem + attr->prog_offset);
 
 	/* Rust unwinder offset */
-	printk("%s %d attr.unwinder_insn_off: 0x%llx\n", __FILE__, __LINE__,
-	       attr->unwinder_insn_off);
 	prog->saved_state->unwinder_insn_off =
 		(u64)base->mem.mem + (u64)attr->unwinder_insn_off;
-	printk("%s %d bpf_func : 0x%pF,  unwinder_insn_off: 0x%llx\n", __FILE__,
-	       __LINE__, prog->bpf_func, prog->saved_state->unwinder_insn_off);
 	prog->saved_state->loader_pid = task_pid_nr(current);
 
 	err = bpf_prog_alloc_id(prog);
@@ -3346,22 +3342,16 @@ static int rex_parse_maps(union bpf_attr *attr, struct bpf_prog *prog,
 	struct bpf_map **used_maps;
 	int idx, ret = 0;
 
-	if (attr->map_cnt >= MAX_USED_MAPS) {
-		printk("attr->rex_maps_len >= MAX_USED_MAPS\n");
+	if (attr->map_cnt >= MAX_USED_MAPS)
 		return -EINVAL;
-	}
 
 	if (copy_from_bpfptr(map_offs, USER_BPFPTR((void *)(attr->map_offs)),
-							sizeof(u64) * attr->map_cnt) != 0) {
-		printk("copy_from_bpfptr() != 0\n");
+							sizeof(u64) * attr->map_cnt) != 0)
 		return -EFAULT;
-	}
 
 	used_maps = kmalloc(sizeof(*used_maps) * attr->map_cnt, GFP_KERNEL);
-	if (!used_maps) {
-		printk("!used_maps\n");
+	if (!used_maps)
 		return -ENOMEM;
-	}
 
 	for (idx = 0; idx < attr->map_cnt; idx++) {
 		u64 *map_addr = (u64 *)(addr_start + map_offs[idx]);
@@ -3374,10 +3364,6 @@ static int rex_parse_maps(union bpf_attr *attr, struct bpf_prog *prog,
 			PAGE_MASK;
 		int nr_pages = start == end ? 1 : 2;
 
-		printk("map offset = 0x%llx\n", map_offs[idx]);
-		printk("map virt addr = 0x%llx\n", (u64)map_addr);
-		printk("map fd = %llu\n", *map_addr);
-
 		if (IS_ERR(curr)) {
 			ret = PTR_ERR(curr);
 			goto free_used_maps;
@@ -3385,7 +3371,7 @@ static int rex_parse_maps(union bpf_attr *attr, struct bpf_prog *prog,
 
 		used_maps[idx] = curr;
 
-		// Maps might (or will always?) be in .data, which is read-only
+		/* Maps might (or will always?) be in .data, which is read-only */
 		if (is_ro)
 			set_memory_rw(start, nr_pages);
 		*map_addr = (u64)curr;
@@ -3427,20 +3413,13 @@ static int rex_parse_relas(union bpf_attr *attr, u64 addr_start)
 			goto free_relas;
 		}
 
-		printk("relas[%d]: addr=0x%llx, value=0x%llx\n", i, relas[i].offset,
-				relas[i].addend);
 		abs_addr = (u64 *)(addr_start + relas[i].offset);
-		printk("Original value at addr 0x%llx is 0x%llx\n", relas[i].offset,
-				*abs_addr);
 		if (*abs_addr != relas[i].addend) {
 			ret = -EINVAL;
 			goto free_relas;
 		}
 
 		*abs_addr += addr_start;
-
-		printk("Updated value at addr 0x%llx is 0x%llx\n", relas[i].offset,
-				*abs_addr);
 	}
 
 free_relas:
@@ -3476,8 +3455,6 @@ static int rex_parse_dyn_syms(union bpf_attr *attr, u64 addr_start, struct bpf_p
 		if (ret < 0)
 			goto free_syms;
 
-		printk("Addr 0x%llx, %s\n", (u64)abs_addr, name);
-
 		sym_addr = kallsyms_lookup_name(name);
 		if (!sym_addr) {
 			ret = -EINVAL;
@@ -3493,7 +3470,6 @@ static int rex_parse_dyn_syms(union bpf_attr *attr, u64 addr_start, struct bpf_p
 		}
 
 		*abs_addr = sym_addr;
-		printk("Addr 0x%llx updated to 0x%llx\n", (u64)abs_addr, sym_addr);
 	}
 
 	ret = 0;
@@ -3614,12 +3590,6 @@ static int bpf_prog_load_rex_base(union bpf_attr *attr, bpfptr_t uattr)
 	/* eBPF programs must be GPL compatible to use GPL-ed functions */
 	is_gpl = license_is_gpl_compatible(license);
 
-	/*
-	if (attr->insn_cnt == 0 ||
-	    attr->insn_cnt > (bpf_capable() ? BPF_COMPLEXITY_LIMIT_INSNS : BPF_MAXINSNS))
-		return -E2BIG;
-	*/
-
 	/* Root-only for now */
 	if (!bpf_capable())
 		return -EPERM;
@@ -3692,14 +3662,6 @@ static int bpf_prog_load_rex_base(union bpf_attr *attr, bpfptr_t uattr)
 	prog->aux->user = get_current_user();
 	prog->len = attr->insn_cnt;
 	err = -EFAULT;
-	//if (copy_from_bpfptr(prog->insns,
-	//		     make_bpfptr(attr->insns, uattr.is_kernel),
-	//		     bpf_prog_insn_size(prog)) != 0)
-	/* DJW len is now just the size of the actual code */
-	/*if (copy_from_bpfptr(prog->insns,
-			     make_bpfptr(attr->insns, uattr.is_kernel),
-                 prog->len) != 0)
-		goto free_prog_sec;*/
 
 	prog->orig_prog = NULL;
 	prog->jited = 1; /* DJW: we are always 'jited' */
@@ -3724,19 +3686,6 @@ static int bpf_prog_load_rex_base(union bpf_attr *attr, bpfptr_t uattr)
 	if (err < 0)
 		goto free_prog_sec;
 
-	/* run eBPF verifier */
-	/* err = bpf_check(&prog, attr, uattr); */
-	/* if (err < 0) */
-	/* 	goto free_used_maps; */
-
-	/* printk(KERN_WARNING "DJW %d\n", __LINE__); */
-	/* prog = bpf_prog_select_runtime(prog, &err); */
-	/* if (err < 0) */
-	/* 	goto free_used_maps; */
-
-	//prog->bpf_func = bpf_jit_alloc_exec(round_up(prog->len, PAGE_SIZE));
-	//prog->bpf_func = __vmalloc(round_up(prog->len, PAGE_SIZE), GFP_KERNEL, PAGE_KERNEL_EXEC);
-	//prog->bpf_func = module_alloc(round_up(prog->len, PAGE_SIZE));
 	bpf_get_trace_printk_proto();
 
 	filp = fget(attr->rustfd);
@@ -3839,8 +3788,6 @@ static int bpf_prog_load_rex_base(union bpf_attr *attr, bpfptr_t uattr)
 			goto error_phdr;
 		if (p_vaddr_end > MAX_PROG_SZ)
 			goto error_phdr;
-
-		printk("p_vaddr=0x%llx, p_vaddr_start=0x%llx, p_vaddr_end=0x%llx", p_vaddr, p_vaddr_start, p_vaddr_end);
 
 		/* Enforce 4k alignment for now */
 		if (p_align != 1UL << PAGE_SHIFT)
