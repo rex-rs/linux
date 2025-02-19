@@ -3554,12 +3554,7 @@ static int rex_parse_relas(union bpf_attr *attr, u64 addr_start)
 		}
 
 		abs_addr = (u64 *)(addr_start + relas[i].offset);
-		if (*abs_addr != relas[i].addend) {
-			ret = -EINVAL;
-			goto free_relas;
-		}
-
-		*abs_addr += addr_start;
+		*abs_addr = addr_start + relas[i].addend;
 	}
 
 free_relas:
