@@ -34,7 +34,7 @@ kernel_libbpf = custom_target(
   env: ['LLVM=1'],
   console: true,
   depends: kernel_build,
-  build_by_default: true,
+  build_by_default: true
 )
 
 subdir('usr')
