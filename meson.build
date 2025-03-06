@@ -1,6 +1,10 @@
 make = find_program('make')
 nproc = find_program('nproc')
-cpu_count = run_command(nproc).stdout().strip()
+cpu_count = run_command(
+  nproc,
+  capture: true,
+  check: true
+).stdout().strip()
 
 
 kernel_config = custom_target(
