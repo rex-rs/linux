@@ -1,5 +1,7 @@
-
 make = find_program('make')
+nproc = find_program('nproc')
+cpu_count = run_command(nproc).stdout().strip()
+
 
 kernel_config = custom_target(
   'kernel-config',
@@ -17,7 +19,7 @@ kernel_build = custom_target(
   'kernel-build',
   output: ['vmlinux'],
   command: [
-    'make', '-C','@SOURCE_ROOT@/linux','-kj', '32', 'O=' + kbuild_dir
+    'make', '-C','@SOURCE_ROOT@/linux', '-kj', cpu_count, 'O=' + kbuild_dir
   ],
   env: ['LLVM=1'],
   console: true,
@@ -29,7 +31,7 @@ kernel_libbpf = custom_target(
   'kernel-libbpf',
   output: ['libbpf.so', 'bpf_helper_defs.h'],
   command: [
-    make, '-C', '@SOURCE_ROOT@/linux/tools/lib/bpf/', '-kj', '32', 'O=' + kbuild_dir
+    make, '-C', '@SOURCE_ROOT@/linux/tools/lib/bpf/', '-kj', cpu_count, 'O=' + kbuild_dir
   ],
   env: ['LLVM=1'],
   console: true,
