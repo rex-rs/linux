@@ -28,6 +28,7 @@ kernel_build = custom_target(
   env: ['LLVM=1'],
   console: true,
   depends: kernel_config,
+  build_always_stale: true,
   build_by_default: false
 )
 
