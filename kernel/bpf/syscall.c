@@ -3964,7 +3964,6 @@ static int bpf_prog_load_rex_base(union bpf_attr *attr, bpfptr_t uattr)
 
 	for (ph_i = 0, offset = 0; ph_i < ehdr->e_phnum; ph_i++) {
 		Elf64_Xword p_filesz = phdr[ph_i].p_filesz;
-		Elf64_Xword p_memsz = phdr[ph_i].p_memsz;
 
 		int prot;
 		void *readbuf;
@@ -3995,7 +3994,6 @@ static int bpf_prog_load_rex_base(union bpf_attr *attr, bpfptr_t uattr)
 		}
 
 		memcpy(mem + offset + sec_off[ph_i], readbuf, p_filesz);
-		memset(mem + offset + p_filesz, 0, p_memsz - p_filesz);
 
 		// Set correct permission
 		page_cnt = (vm_size[ph_i] >> PAGE_SHIFT);
