@@ -9,6 +9,9 @@
 
 #include <asm/irq_regs.h>
 
+/* Per-cpu log buffer to format printk and panic messages */
+DEFINE_PER_CPU(char[MAX_BPRINTF_BUF], rex_log_buf) = { 0 };
+
 /* Set watchdog period to 20s */
 #define WATCHDOG_PERIOD_MS 20000U
 
