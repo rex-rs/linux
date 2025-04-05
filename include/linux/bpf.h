@@ -3804,6 +3804,9 @@ int bpf_stream_stage_dump_stack(struct bpf_stream_stage *ss);
 		bpf_stream_stage_free(&ss);                    \
 	})
 
+DECLARE_PER_CPU(char[MAX_BPRINTF_BUF], rex_log_buf);
+void rex_trace_printk(void);
+
 #ifdef CONFIG_BPF_LSM
 void bpf_cgroup_atype_get(u32 attach_btf_id, int cgroup_atype);
 void bpf_cgroup_atype_put(int cgroup_atype);
