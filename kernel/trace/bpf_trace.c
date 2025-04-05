@@ -392,6 +392,11 @@ static const struct bpf_func_proto bpf_trace_printk_proto = {
 	.arg2_type	= ARG_CONST_SIZE,
 };
 
+void rex_trace_printk(void)
+{
+	trace_bpf_trace_printk(this_cpu_ptr(rex_log_buf));
+}
+
 static void __set_printk_clr_event(struct work_struct *work)
 {
 	/*
