@@ -3578,7 +3578,7 @@ static int bpf_prog_load_rex_base(union bpf_attr *attr, bpfptr_t uattr)
 	Elf64_Half ph_i;
 	u64 addr_start = 0;
 	int *vm_size = NULL, *sec_off = NULL;
-	int total_vm = 0, offset, total_page = 0;
+	int total_vm = 0;
 
 	if (CHECK_ATTR(BPF_PROG_LOAD))
 		return -EINVAL;
@@ -3827,11 +3827,10 @@ static int bpf_prog_load_rex_base(union bpf_attr *attr, bpfptr_t uattr)
 
 		vm_size[ph_i] = round_up(p_vaddr_end - p_vaddr_start, p_align);
 		sec_off[ph_i] = p_vaddr - p_vaddr_start;
-		total_vm += vm_size[ph_i];
 	}
 
-	if (e_end != total_vm)
-		goto error_phdr;
+	/* Allocate enough space to hold the largest address */
+	total_vm = e_end;
 
 	mem = __vmalloc(total_vm, GFP_KERNEL_ACCOUNT | __GFP_ZERO | GFP_USER);
 	if (!mem) {
@@ -3841,12 +3840,15 @@ static int bpf_prog_load_rex_base(union bpf_attr *attr, bpfptr_t uattr)
 	prog->mem.mem = mem;
 	addr_start = (u64)mem;
 
-	for (ph_i = 0, offset = 0; ph_i < ehdr->e_phnum; ph_i++) {
+	prog->mem.total_page = total_vm >> PAGE_SHIFT;
+
+	for (ph_i = 0; ph_i < ehdr->e_phnum; ph_i++) {
 		Elf64_Xword p_filesz = phdr[ph_i].p_filesz;
 
 		int prot;
 		void *readbuf;
-		int page_cnt;
+		int page_cnt = (vm_size[ph_i] >> PAGE_SHIFT);
+		u64 map_addr = (u64)mem + phdr[ph_i].p_vaddr - sec_off[ph_i];
 
 		if (phdr[ph_i].p_type != PT_LOAD)
 			continue;
@@ -3872,34 +3874,26 @@ static int bpf_prog_load_rex_base(union bpf_attr *attr, bpfptr_t uattr)
 			goto error_vm;
 		}
 
-		memcpy(mem + offset + sec_off[ph_i], readbuf, p_filesz);
+		memcpy(mem + phdr[ph_i].p_vaddr, readbuf, p_filesz);
 
 		// Set correct permission
-		page_cnt = (vm_size[ph_i] >> PAGE_SHIFT);
-
 		if ((prot & PROT_READ) && (prot & PROT_EXEC)) {
-			set_memory_ro((unsigned long)mem + offset, page_cnt);
-			set_memory_x((unsigned long)mem + offset, page_cnt);
+			set_memory_ro(map_addr, page_cnt);
+			set_memory_x(map_addr, page_cnt);
 		} else if ((prot & PROT_READ) && (prot & PROT_WRITE)) {
-			set_memory_rw((unsigned long)mem + offset, page_cnt); // acutally not needed
+			set_memory_rw(map_addr, page_cnt); // acutally not needed
 		} else if (prot & PROT_READ) {
-			set_memory_ro((unsigned long)mem + offset, page_cnt);
+			set_memory_ro(map_addr, page_cnt);
 		} else {
 			kfree(readbuf);
-			if (offset) {
-				set_memory_nx((unsigned long)mem, total_page);
-				set_memory_rw((unsigned long)mem, total_page);
-			}
+			set_memory_nx((u64)mem, prog->mem.total_page);
+			set_memory_rw((u64)mem, prog->mem.total_page);
 			err = -EINVAL;
 			goto error_vm;
 		}
 		kfree(readbuf);
-
-		total_page += page_cnt;
-		offset += vm_size[ph_i];
 	}
 
-	prog->mem.total_page = total_page;
 	kfree(ehdr);
 	kfree(phdr);
 	kfree(vm_size);
