@@ -64,4 +64,5 @@ static void __exit target_exit(void)
 
 module_init(target_init)
 module_exit(target_exit)
+MODULE_DESCRIPTION("sample kernel module for benchmarking Rex kprobe programs");
 MODULE_LICENSE("GPL");
