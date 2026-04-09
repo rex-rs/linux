@@ -2723,9 +2723,13 @@ static void scx_watchdog_workfn(struct work_struct *work)
 
 	WRITE_ONCE(scx_watchdog_timestamp, jiffies);
 
+	pr_info_ratelimited("sched_ext: watchdog tick (checking all CPUs)\n");
+
 	for_each_online_cpu(cpu) {
-		if (unlikely(check_rq_for_timeouts(cpu_rq(cpu))))
+		if (unlikely(check_rq_for_timeouts(cpu_rq(cpu)))) {
+			pr_warn("sched_ext: watchdog detected timeout on CPU %d!\n", cpu);
 			break;
+		}
 
 		cond_resched();
 	}
@@ -4964,6 +4968,8 @@ static int scx_enable(struct sched_ext_ops *ops, struct bpf_link *link)
 	if (WARN_ON_ONCE(READ_ONCE(scx_aborting)))
 		WRITE_ONCE(scx_aborting, false);
 
+	pr_info("sched_ext: [1/6] state -> SCX_ENABLING\n");
+
 	atomic_long_set(&scx_nr_rejected, 0);
 
 	for_each_possible_cpu(cpu)
@@ -4984,6 +4990,7 @@ static int scx_enable(struct sched_ext_ops *ops, struct bpf_link *link)
 	scx_idle_enable(ops);
 
 	if (sch->ops.init) {
+		pr_info("sched_ext: [2/6] calling ops.init() ...\n");
 		ret = SCX_CALL_OP_RET(sch, SCX_KF_UNLOCKED, init, NULL);
 		if (ret) {
 			ret = ops_sanitize_err(sch, "init", ret);
@@ -4992,6 +4999,7 @@ static int scx_enable(struct sched_ext_ops *ops, struct bpf_link *link)
 			goto err_disable;
 		}
 		sch->exit_info->flags |= SCX_EFLAG_INITIALIZED;
+		pr_info("sched_ext: [2/6] ops.init() returned successfully\n");
 	}
 
 	for (i = SCX_OPI_CPU_HOTPLUG_BEGIN; i < SCX_OPI_CPU_HOTPLUG_END; i++)
@@ -5030,6 +5038,8 @@ static int scx_enable(struct sched_ext_ops *ops, struct bpf_link *link)
 	WRITE_ONCE(scx_watchdog_timestamp, jiffies);
 	queue_delayed_work(system_unbound_wq, &scx_watchdog_work,
 			   scx_watchdog_timeout / 2);
+	pr_info("sched_ext: [3/6] watchdog armed (timeout=%lu ms)\n",
+		jiffies_to_msecs(timeout));
 
 	/*
 	 * Once __scx_enabled is set, %current can be switched to SCX anytime.
@@ -5055,6 +5065,7 @@ static int scx_enable(struct sched_ext_ops *ops, struct bpf_link *link)
 
 	WARN_ON_ONCE(scx_init_task_enabled);
 	scx_init_task_enabled = true;
+	pr_info("sched_ext: [4/6] initializing all existing tasks for SCX ...\n");
 
 	/*
 	 * Enable ops for every task. Fork is excluded by scx_fork_rwsem
@@ -5109,6 +5120,7 @@ static int scx_enable(struct sched_ext_ops *ops, struct bpf_link *link)
 	 */
 	WRITE_ONCE(scx_switching_all, !(ops->flags & SCX_OPS_SWITCH_PARTIAL));
 	static_branch_enable(&__scx_enabled);
+	pr_info("sched_ext: [5/6] scx_enabled=true, switching all tasks to SCX class ...\n");
 
 	/*
 	 * We're fully committed and can't fail. The task READY -> ENABLED
@@ -5147,6 +5159,7 @@ static int scx_enable(struct sched_ext_ops *ops, struct bpf_link *link)
 	if (!(ops->flags & SCX_OPS_SWITCH_PARTIAL))
 		static_branch_enable(&__scx_switched_all);
 
+	pr_info("sched_ext: [6/6] state -> SCX_ENABLED. Scheduler takeover COMPLETE!\n");
 	pr_info("sched_ext: BPF scheduler \"%s\" enabled%s\n",
 		sch->ops.name, scx_switched_all() ? "" : " (partial)");
 	kobject_uevent(&sch->kobj, KOBJ_ADD);
@@ -5324,6 +5337,8 @@ int scx_enable_rex(struct bpf_prog *base,
 	u32 i;
 	int err;
 
+	pr_info("sched_ext_rex: === REX ENABLE START === nr_syms=%u\n", nr_syms);
+
 	if (nr_syms > 64)
 		return -EINVAL;
 
@@ -5411,14 +5426,19 @@ int scx_enable_rex(struct bpf_prog *base,
 			err = -EINVAL;
 			goto free_ops;
 		}
+		pr_info("sched_ext_rex: matched callback \"%s\" at offset 0x%llx\n",
+			name_buf, syms[i].offset);
 	}
 
 	strscpy(ops->name, base->aux->name, sizeof(ops->name));
+	pr_info("sched_ext_rex: all %u callbacks matched, calling scx_enable(\"%s\")\n",
+		nr_syms, ops->name);
 
 	mutex_lock(&scx_rex_mutex);
 
 	err = scx_enable(ops, NULL);
 	if (err) {
+		pr_err("sched_ext_rex: scx_enable() FAILED err=%d\n", err);
 		mutex_unlock(&scx_rex_mutex);
 		goto free_ops;
 	}
@@ -5426,6 +5446,7 @@ int scx_enable_rex(struct bpf_prog *base,
 	scx_rex_base_prog = base;
 	mutex_unlock(&scx_rex_mutex);
 
+	pr_info("sched_ext_rex: === REX ENABLE COMPLETE === scheduler is ACTIVE\n");
 	kvfree(syms);
 	kfree(ops);
 	return 0;
@@ -5442,6 +5463,8 @@ int scx_disable_rex(void)
 {
 	struct scx_sched *sch;
 	struct bpf_prog *base;
+
+	pr_info("sched_ext_rex: === REX DISABLE START ===\n");
 
 	mutex_lock(&scx_rex_mutex);
 
@@ -5460,6 +5483,7 @@ int scx_disable_rex(void)
 		return -ENOENT;
 	}
 
+	pr_info("sched_ext_rex: disabling scheduler, switching tasks back to CFS ...\n");
 	scx_disable(SCX_EXIT_UNREG);
 	kthread_flush_work(&sch->disable_work);
 	kobject_put(&sch->kobj);
@@ -5469,6 +5493,7 @@ int scx_disable_rex(void)
 
 	bpf_prog_put(base);
 
+	pr_info("sched_ext_rex: === REX DISABLE COMPLETE === back to default scheduler\n");
 	return 0;
 }
 EXPORT_SYMBOL_GPL(scx_disable_rex);

@@ -4111,6 +4111,10 @@ static int bpf_sched_ext_attach_rex(union bpf_attr *attr, bpfptr_t uattr)
 	struct bpf_prog *base;
 	int err;
 
+	pr_info("bpf_syscall: BPF_SCHED_EXT_ATTACH_REX called (fd=%u, nr_syms=%u)\n",
+		attr->sched_ext_attach.base_prog_fd,
+		attr->sched_ext_attach.nr_sched_ops_syms);
+
 	if (!bpf_capable())
 		return -EPERM;
 
@@ -4128,11 +4132,15 @@ static int bpf_sched_ext_attach_rex(union bpf_attr *attr, bpfptr_t uattr)
 		goto put_prog;
 	}
 
+	pr_info("bpf_syscall: Rex base prog verified, forwarding to scx_enable_rex()\n");
+
 	err = scx_enable_rex(base,
 			     u64_to_user_ptr(attr->sched_ext_attach.sched_ops_syms),
 			     attr->sched_ext_attach.nr_sched_ops_syms);
 	if (err)
 		goto put_prog;
+
+	pr_info("bpf_syscall: BPF_SCHED_EXT_ATTACH_REX succeeded\n");
 
 	/*
 	 * Keep the bpf_prog_get() reference: the scheduler callbacks point
@@ -4148,6 +4156,8 @@ put_prog:
 
 static int bpf_sched_ext_detach_rex(void)
 {
+	pr_info("bpf_syscall: BPF_SCHED_EXT_DETACH_REX called\n");
+
 	if (!bpf_capable())
 		return -EPERM;
 
