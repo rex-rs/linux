@@ -4103,7 +4103,8 @@ free_prog_sec:
 }
 
 extern int scx_enable_rex(struct bpf_prog *base,
-			  struct rex_sched_ops_sym __user *usyms, u32 nr_syms);
+			  struct rex_sched_ops_sym __user *usyms, u32 nr_syms,
+			  u64 ops_flags, u32 timeout_ms, u32 exit_dump_len);
 extern int scx_disable_rex(void);
 
 static int bpf_sched_ext_attach_rex(union bpf_attr *attr, bpfptr_t uattr)
@@ -4130,7 +4131,10 @@ static int bpf_sched_ext_attach_rex(union bpf_attr *attr, bpfptr_t uattr)
 
 	err = scx_enable_rex(base,
 			     u64_to_user_ptr(attr->sched_ext_attach.sched_ops_syms),
-			     attr->sched_ext_attach.nr_sched_ops_syms);
+			     attr->sched_ext_attach.nr_sched_ops_syms,
+			     attr->sched_ext_attach.ops_flags,
+			     attr->sched_ext_attach.timeout_ms,
+			     attr->sched_ext_attach.exit_dump_len);
 	if (err)
 		goto put_prog;
 

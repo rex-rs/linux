@@ -1909,6 +1909,10 @@ union bpf_attr {
 		__u32		base_prog_fd;
 		__aligned_u64	sched_ops_syms;		/* ptr to rex_sched_ops_sym array */
 		__u32		nr_sched_ops_syms;
+		__u32		timeout_ms;		/* ops.timeout_ms, 0 = default */
+		__u32		exit_dump_len;		/* ops.exit_dump_len, 0 = default */
+		__u32		pad;
+		__aligned_u64	ops_flags;		/* SCX_OPS_* flags */
 	} sched_ext_attach;
 
 } __attribute__((aligned(8)));
