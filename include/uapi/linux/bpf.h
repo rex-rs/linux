@@ -976,6 +976,8 @@ enum bpf_cmd {
 	BPF_PROG_STREAM_READ_BY_FD,
 	BPF_PROG_LOAD_REX_BASE,
 	BPF_PROG_LOAD_REX,
+	BPF_SCHED_EXT_ATTACH_REX,
+	BPF_SCHED_EXT_DETACH_REX,
 	BPF_PROG_TERMINATE,
 	__MAX_BPF_CMD,
 };
@@ -1506,6 +1508,11 @@ struct rex_text_sym {
 	const char __user	*symbol;
 };
 
+struct rex_sched_ops_sym {
+	const char __user	*name;
+	__u64			offset;
+};
+
 union bpf_attr {
 	struct { /* anonymous struct used by BPF_MAP_CREATE command */
 		__u32	map_type;	/* one of enum bpf_map_type */
@@ -1932,6 +1939,12 @@ union bpf_attr {
 		__u32		stream_id;
 		__u32		prog_fd;
 	} prog_stream_read;
+
+	struct { /* BPF_SCHED_EXT_ATTACH_REX */
+		__u32		base_prog_fd;
+		__aligned_u64	sched_ops_syms;		/* ptr to rex_sched_ops_sym array */
+		__u32		nr_sched_ops_syms;
+	} sched_ext_attach;
 
 } __attribute__((aligned(8)));
 

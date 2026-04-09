@@ -5312,6 +5312,167 @@ static int bpf_scx_reg(void *kdata, struct bpf_link *link)
 	return scx_enable(kdata, link);
 }
 
+static DEFINE_MUTEX(scx_rex_mutex);
+static struct bpf_prog *scx_rex_base_prog;
+
+int scx_enable_rex(struct bpf_prog *base,
+		   struct rex_sched_ops_sym __user *usyms, u32 nr_syms)
+{
+	struct sched_ext_ops *ops;
+	struct rex_sched_ops_sym *syms;
+	char name_buf[128];
+	u32 i;
+	int err;
+
+	if (nr_syms > 64)
+		return -EINVAL;
+
+	syms = kvmalloc_array(nr_syms, sizeof(*syms), GFP_KERNEL);
+	if (!syms)
+		return -ENOMEM;
+
+	if (copy_from_user(syms, usyms, nr_syms * sizeof(*syms))) {
+		err = -EFAULT;
+		goto free_syms;
+	}
+
+	ops = kzalloc(sizeof(*ops), GFP_KERNEL);
+	if (!ops) {
+		err = -ENOMEM;
+		goto free_syms;
+	}
+
+	for (i = 0; i < nr_syms; i++) {
+		void *fn;
+		long name_len;
+		bool matched;
+
+		name_len = strncpy_from_user(name_buf, syms[i].name,
+					     sizeof(name_buf));
+		if (name_len <= 0 || name_len >= sizeof(name_buf)) {
+			err = -EFAULT;
+			goto free_ops;
+		}
+
+		if (syms[i].offset >= (u64)base->mem.total_page << PAGE_SHIFT) {
+			err = -EINVAL;
+			goto free_ops;
+		}
+
+		fn = (void *)((u64)base->mem.mem + syms[i].offset);
+		matched = false;
+
+#define SCX_OP_MATCH(field) \
+	do { if (!strcmp(name_buf, #field)) { ops->field = fn; matched = true; } } while (0)
+
+		if (!matched) SCX_OP_MATCH(select_cpu);
+		if (!matched) SCX_OP_MATCH(enqueue);
+		if (!matched) SCX_OP_MATCH(dequeue);
+		if (!matched) SCX_OP_MATCH(dispatch);
+		if (!matched) SCX_OP_MATCH(tick);
+		if (!matched) SCX_OP_MATCH(runnable);
+		if (!matched) SCX_OP_MATCH(running);
+		if (!matched) SCX_OP_MATCH(stopping);
+		if (!matched) SCX_OP_MATCH(quiescent);
+		if (!matched) SCX_OP_MATCH(yield);
+		if (!matched) SCX_OP_MATCH(core_sched_before);
+		if (!matched) SCX_OP_MATCH(set_weight);
+		if (!matched) SCX_OP_MATCH(set_cpumask);
+		if (!matched) SCX_OP_MATCH(update_idle);
+		if (!matched) SCX_OP_MATCH(cpu_acquire);
+		if (!matched) SCX_OP_MATCH(cpu_release);
+		if (!matched) SCX_OP_MATCH(init_task);
+		if (!matched) SCX_OP_MATCH(exit_task);
+		if (!matched) SCX_OP_MATCH(enable);
+		if (!matched) SCX_OP_MATCH(disable);
+		if (!matched) SCX_OP_MATCH(dump);
+		if (!matched) SCX_OP_MATCH(dump_cpu);
+		if (!matched) SCX_OP_MATCH(dump_task);
+#ifdef CONFIG_EXT_GROUP_SCHED
+		if (!matched) SCX_OP_MATCH(cgroup_init);
+		if (!matched) SCX_OP_MATCH(cgroup_exit);
+		if (!matched) SCX_OP_MATCH(cgroup_prep_move);
+		if (!matched) SCX_OP_MATCH(cgroup_move);
+		if (!matched) SCX_OP_MATCH(cgroup_cancel_move);
+		if (!matched) SCX_OP_MATCH(cgroup_set_weight);
+		if (!matched) SCX_OP_MATCH(cgroup_set_bandwidth);
+		if (!matched) SCX_OP_MATCH(cgroup_set_idle);
+#endif
+		if (!matched) SCX_OP_MATCH(cpu_online);
+		if (!matched) SCX_OP_MATCH(cpu_offline);
+		if (!matched) SCX_OP_MATCH(init);
+		if (!matched) SCX_OP_MATCH(exit);
+
+#undef SCX_OP_MATCH
+
+		if (!matched) {
+			pr_err("sched_ext_rex: unknown callback \"%s\"\n",
+			       name_buf);
+			err = -EINVAL;
+			goto free_ops;
+		}
+	}
+
+	strscpy(ops->name, base->aux->name, sizeof(ops->name));
+
+	mutex_lock(&scx_rex_mutex);
+
+	err = scx_enable(ops, NULL);
+	if (err) {
+		mutex_unlock(&scx_rex_mutex);
+		goto free_ops;
+	}
+
+	scx_rex_base_prog = base;
+	mutex_unlock(&scx_rex_mutex);
+
+	kvfree(syms);
+	kfree(ops);
+	return 0;
+
+free_ops:
+	kfree(ops);
+free_syms:
+	kvfree(syms);
+	return err;
+}
+EXPORT_SYMBOL_GPL(scx_enable_rex);
+
+int scx_disable_rex(void)
+{
+	struct scx_sched *sch;
+	struct bpf_prog *base;
+
+	mutex_lock(&scx_rex_mutex);
+
+	base = scx_rex_base_prog;
+	if (!base) {
+		mutex_unlock(&scx_rex_mutex);
+		return -ENOENT;
+	}
+
+	rcu_read_lock();
+	sch = rcu_dereference(scx_root);
+	rcu_read_unlock();
+
+	if (!sch) {
+		mutex_unlock(&scx_rex_mutex);
+		return -ENOENT;
+	}
+
+	scx_disable(SCX_EXIT_UNREG);
+	kthread_flush_work(&sch->disable_work);
+	kobject_put(&sch->kobj);
+
+	scx_rex_base_prog = NULL;
+	mutex_unlock(&scx_rex_mutex);
+
+	bpf_prog_put(base);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(scx_disable_rex);
+
 static void bpf_scx_unreg(void *kdata, struct bpf_link *link)
 {
 	struct sched_ext_ops *ops = kdata;
