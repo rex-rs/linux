@@ -4102,6 +4102,57 @@ free_prog_sec:
 	return err;
 }
 
+extern int scx_enable_rex(struct bpf_prog *base,
+			  struct rex_sched_ops_sym __user *usyms, u32 nr_syms);
+extern int scx_disable_rex(void);
+
+static int bpf_sched_ext_attach_rex(union bpf_attr *attr, bpfptr_t uattr)
+{
+	struct bpf_prog *base;
+	int err;
+
+	if (!bpf_capable())
+		return -EPERM;
+
+	if (!attr->sched_ext_attach.base_prog_fd ||
+	    !attr->sched_ext_attach.sched_ops_syms ||
+	    !attr->sched_ext_attach.nr_sched_ops_syms)
+		return -EINVAL;
+
+	base = bpf_prog_get(attr->sched_ext_attach.base_prog_fd);
+	if (IS_ERR(base))
+		return PTR_ERR(base);
+
+	if (base->type != BPF_PROG_TYPE_REX_BASE) {
+		err = -EINVAL;
+		goto put_prog;
+	}
+
+	err = scx_enable_rex(base,
+			     u64_to_user_ptr(attr->sched_ext_attach.sched_ops_syms),
+			     attr->sched_ext_attach.nr_sched_ops_syms);
+	if (err)
+		goto put_prog;
+
+	/*
+	 * Keep the bpf_prog_get() reference: the scheduler callbacks point
+	 * into base->mem.mem which must stay alive. scx_enable_rex() saved
+	 * the pointer; scx_disable_rex() will release it on detach.
+	 */
+	return 0;
+
+put_prog:
+	bpf_prog_put(base);
+	return err;
+}
+
+static int bpf_sched_ext_detach_rex(void)
+{
+	if (!bpf_capable())
+		return -EPERM;
+
+	return scx_disable_rex();
+}
 
 #define BPF_OBJ_LAST_FIELD path_fd
 
@@ -7128,6 +7179,12 @@ static int __sys_bpf(enum bpf_cmd cmd, bpfptr_t uattr, unsigned int size)
 		break;
 	case BPF_PROG_LOAD_REX:
 		err = bpf_prog_load_rex(&attr, uattr);
+		break;
+	case BPF_SCHED_EXT_ATTACH_REX:
+		err = bpf_sched_ext_attach_rex(&attr, uattr);
+		break;
+	case BPF_SCHED_EXT_DETACH_REX:
+		err = bpf_sched_ext_detach_rex();
 		break;
 	case BPF_OBJ_PIN:
 		err = bpf_obj_pin(&attr);
