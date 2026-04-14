@@ -5329,7 +5329,8 @@ static DEFINE_MUTEX(scx_rex_mutex);
 static struct bpf_prog *scx_rex_base_prog;
 
 int scx_enable_rex(struct bpf_prog *base,
-		   struct rex_sched_ops_sym __user *usyms, u32 nr_syms)
+		   struct rex_sched_ops_sym __user *usyms, u32 nr_syms,
+		   u64 ops_flags, u32 timeout_ms, u32 exit_dump_len)
 {
 	struct sched_ext_ops *ops;
 	struct rex_sched_ops_sym *syms;
@@ -5430,6 +5431,10 @@ int scx_enable_rex(struct bpf_prog *base,
 			name_buf, syms[i].offset);
 	}
 
+	ops->flags        = ops_flags;
+	ops->timeout_ms   = timeout_ms;
+	ops->exit_dump_len = exit_dump_len;
+
 	strscpy(ops->name, base->aux->name, sizeof(ops->name));
 	pr_info("sched_ext_rex: all %u callbacks matched, calling scx_enable(\"%s\")\n",
 		nr_syms, ops->name);
@@ -5492,7 +5497,7 @@ int scx_disable_rex(void)
 	mutex_unlock(&scx_rex_mutex);
 
 	bpf_prog_put(base);
-
+	
 	pr_info("sched_ext_rex: === REX DISABLE COMPLETE === back to default scheduler\n");
 	return 0;
 }
