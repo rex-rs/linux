@@ -1948,6 +1948,7 @@ union bpf_attr {
 		__u32		exit_dump_len;		/* ops.exit_dump_len, 0 = default */
 		__u32		pad;
 		__aligned_u64	ops_flags;		/* SCX_OPS_* flags */
+		char		name[128];		/* ops.name; empty string = use base->aux->name */
 	} sched_ext_attach;
 
 } __attribute__((aligned(8)));

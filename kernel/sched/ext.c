@@ -5330,7 +5330,8 @@ static struct bpf_prog *scx_rex_base_prog;
 
 int scx_enable_rex(struct bpf_prog *base,
 		   struct rex_sched_ops_sym __user *usyms, u32 nr_syms,
-		   u64 ops_flags, u32 timeout_ms, u32 exit_dump_len)
+		   u64 ops_flags, u32 timeout_ms, u32 exit_dump_len,
+		   const char *user_name)
 {
 	struct sched_ext_ops *ops;
 	struct rex_sched_ops_sym *syms;
@@ -5435,7 +5436,16 @@ int scx_enable_rex(struct bpf_prog *base,
 	ops->timeout_ms   = timeout_ms;
 	ops->exit_dump_len = exit_dump_len;
 
-	strscpy(ops->name, base->aux->name, sizeof(ops->name));
+	/*
+	 * Prefer the user-supplied scheduler name (from SchedExtOps::name in
+	 * the Rust program's .struct_ops). Fall back to the base program's
+	 * name when the caller didn't provide one (empty string) -- this
+	 * preserves the pre-fix behaviour for older loaders.
+	 */
+	if (user_name && user_name[0] != '\0')
+		strscpy(ops->name, user_name, sizeof(ops->name));
+	else
+		strscpy(ops->name, base->aux->name, sizeof(ops->name));
 	pr_info("sched_ext_rex: all %u callbacks matched, calling scx_enable(\"%s\")\n",
 		nr_syms, ops->name);
 
