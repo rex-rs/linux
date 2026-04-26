@@ -916,6 +916,15 @@ struct scx_sched {
 	struct irq_work		error_irq_work;
 	struct kthread_work	disable_work;
 	struct rcu_work		rcu_work;
+
+	/*
+	 * Set when this scheduler was attached via BPF_SCHED_EXT_ATTACH_REX.
+	 * Owns one bpf_prog_get() reference taken at attach time and the
+	 * matching kobject_init_and_add() refcount; both are released by
+	 * scx_disable_workfn() so cleanup happens for every disable kind
+	 * (UNREG, ERROR_STALL, watchdog, sysrq, ...).
+	 */
+	struct bpf_prog		*rex_base;
 };
 
 enum scx_wake_flags {

@@ -4247,6 +4247,9 @@ static void free_kick_syncs(void)
 	}
 }
 
+static DEFINE_MUTEX(scx_rex_mutex);
+static struct bpf_prog *scx_rex_base_prog;
+
 static void scx_disable_workfn(struct kthread_work *work)
 {
 	struct scx_sched *sch = container_of(work, struct scx_sched, disable_work);
@@ -4389,6 +4392,26 @@ static void scx_disable_workfn(struct kthread_work *work)
 	}
 
 	mutex_unlock(&scx_enable_mutex);
+
+	/*
+	 * Drop refs taken when this sched was attached via the Rex syscall
+	 * path. The struct_ops path drops its equivalents via bpf_scx_unreg();
+	 * Rex has no link, so we do it here so cleanup fires for every disable
+	 * kind (UNREG, ERROR_STALL, watchdog, sysrq, ...).
+	 */
+	if (sch->rex_base) {
+		struct bpf_prog *base = sch->rex_base;
+
+		sch->rex_base = NULL;
+
+		mutex_lock(&scx_rex_mutex);
+		if (scx_rex_base_prog == base)
+			scx_rex_base_prog = NULL;
+		mutex_unlock(&scx_rex_mutex);
+
+		kobject_put(&sch->kobj);
+		bpf_prog_put(base);
+	}
 
 	WARN_ON_ONCE(scx_set_enable_state(SCX_DISABLED) != SCX_DISABLING);
 done:
@@ -5325,9 +5348,6 @@ static int bpf_scx_reg(void *kdata, struct bpf_link *link)
 	return scx_enable(kdata, link);
 }
 
-static DEFINE_MUTEX(scx_rex_mutex);
-static struct bpf_prog *scx_rex_base_prog;
-
 int scx_enable_rex(struct bpf_prog *base,
 		   struct rex_sched_ops_sym __user *usyms, u32 nr_syms,
 		   u64 ops_flags, u32 timeout_ms, u32 exit_dump_len,
@@ -5335,6 +5355,7 @@ int scx_enable_rex(struct bpf_prog *base,
 {
 	struct sched_ext_ops *ops;
 	struct rex_sched_ops_sym *syms;
+	struct scx_sched *sch;
 	char name_buf[128];
 	u32 i;
 	int err;
@@ -5458,6 +5479,16 @@ int scx_enable_rex(struct bpf_prog *base,
 		goto free_ops;
 	}
 
+	/*
+	 * Hand the bpf_prog_get() reference taken in bpf_sched_ext_attach_rex()
+	 * over to the scx_sched. scx_disable_workfn() will release it for any
+	 * disable kind, so we don't depend on userspace detach running.
+	 */
+	rcu_read_lock();
+	sch = rcu_dereference(scx_root);
+	rcu_read_unlock();
+	if (sch)
+		sch->rex_base = base;
 	scx_rex_base_prog = base;
 	mutex_unlock(&scx_rex_mutex);
 
@@ -5477,37 +5508,27 @@ EXPORT_SYMBOL_GPL(scx_enable_rex);
 int scx_disable_rex(void)
 {
 	struct scx_sched *sch;
-	struct bpf_prog *base;
 
 	pr_info("sched_ext_rex: === REX DISABLE START ===\n");
 
 	mutex_lock(&scx_rex_mutex);
-
-	base = scx_rex_base_prog;
-	if (!base) {
+	if (!scx_rex_base_prog) {
+		/* Already torn down by another path (e.g. watchdog). */
 		mutex_unlock(&scx_rex_mutex);
-		return -ENOENT;
+		pr_info("sched_ext_rex: === REX DISABLE: already disabled ===\n");
+		return 0;
 	}
-
 	rcu_read_lock();
 	sch = rcu_dereference(scx_root);
 	rcu_read_unlock();
-
-	if (!sch) {
-		mutex_unlock(&scx_rex_mutex);
-		return -ENOENT;
-	}
-
-	pr_info("sched_ext_rex: disabling scheduler, switching tasks back to CFS ...\n");
-	scx_disable(SCX_EXIT_UNREG);
-	kthread_flush_work(&sch->disable_work);
-	kobject_put(&sch->kobj);
-
-	scx_rex_base_prog = NULL;
 	mutex_unlock(&scx_rex_mutex);
 
-	bpf_prog_put(base);
-	
+	if (sch) {
+		pr_info("sched_ext_rex: disabling scheduler, switching tasks back to CFS ...\n");
+		scx_disable(SCX_EXIT_UNREG);
+		kthread_flush_work(&sch->disable_work);
+	}
+
 	pr_info("sched_ext_rex: === REX DISABLE COMPLETE === back to default scheduler\n");
 	return 0;
 }
