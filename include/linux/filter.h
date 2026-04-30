@@ -688,7 +688,7 @@ struct sk_filter {
 };
 
 /* handler for termination requests */
-void rex_terminate(const struct bpf_prog *prog);
+void rex_terminate(const struct bpf_prog *prog, struct pt_regs *regs);
 DECLARE_PER_CPU(const struct bpf_prog *, rex_curr_prog);
 
 DECLARE_STATIC_KEY_FALSE(bpf_stats_enabled_key);
