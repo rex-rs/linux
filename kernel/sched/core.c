@@ -2531,12 +2531,6 @@ static int migration_cpu_stop(void *data)
 	 */
 	flush_smp_call_function_queue(task_pt_regs(current));
 
-	/*
-	 * We may change the underlying rq, but the locks held will
-	 * appropriately be "transferred" when switching.
-	 */
-	context_unsafe_alias(rq);
-
 	raw_spin_lock(&p->pi_lock);
 	rq_lock(rq, &rf);
 

@@ -2831,9 +2831,13 @@ static void scx_watchdog_workfn(struct work_struct *work)
 
 	WRITE_ONCE(scx_watchdog_timestamp, jiffies);
 
+	pr_info_ratelimited("sched_ext: watchdog tick (checking all CPUs)\n");
+
 	for_each_online_cpu(cpu) {
-		if (unlikely(check_rq_for_timeouts(cpu_rq(cpu))))
+		if (unlikely(check_rq_for_timeouts(cpu_rq(cpu)))) {
+			pr_warn("sched_ext: watchdog detected timeout on CPU %d!\n", cpu);
 			break;
+		}
 
 		cond_resched();
 	}
@@ -4355,6 +4359,9 @@ static void free_kick_syncs(void)
 	}
 }
 
+static DEFINE_MUTEX(scx_rex_mutex);
+static struct bpf_prog *scx_rex_base_prog;
+
 static void scx_disable_workfn(struct kthread_work *work)
 {
 	struct scx_sched *sch = container_of(work, struct scx_sched, disable_work);
@@ -4497,6 +4504,26 @@ static void scx_disable_workfn(struct kthread_work *work)
 	}
 
 	mutex_unlock(&scx_enable_mutex);
+
+	/*
+	 * Drop refs taken when this sched was attached via the Rex syscall
+	 * path. The struct_ops path drops its equivalents via bpf_scx_unreg();
+	 * Rex has no link, so we do it here so cleanup fires for every disable
+	 * kind (UNREG, ERROR_STALL, watchdog, sysrq, ...).
+	 */
+	if (sch->rex_base) {
+		struct bpf_prog *base = sch->rex_base;
+
+		sch->rex_base = NULL;
+
+		mutex_lock(&scx_rex_mutex);
+		if (scx_rex_base_prog == base)
+			scx_rex_base_prog = NULL;
+		mutex_unlock(&scx_rex_mutex);
+
+		kobject_put(&sch->kobj);
+		bpf_prog_put(base);
+	}
 
 	WARN_ON_ONCE(scx_set_enable_state(SCX_DISABLED) != SCX_DISABLING);
 done:
@@ -5100,6 +5127,8 @@ static void scx_enable_workfn(struct kthread_work *work)
 	if (WARN_ON_ONCE(READ_ONCE(scx_aborting)))
 		WRITE_ONCE(scx_aborting, false);
 
+	pr_info("sched_ext: [1/6] state -> SCX_ENABLING\n");
+
 	atomic_long_set(&scx_nr_rejected, 0);
 
 	for_each_possible_cpu(cpu)
@@ -5120,6 +5149,7 @@ static void scx_enable_workfn(struct kthread_work *work)
 	scx_idle_enable(ops);
 
 	if (sch->ops.init) {
+		pr_info("sched_ext: [2/6] calling ops.init() ...\n");
 		ret = SCX_CALL_OP_RET(sch, SCX_KF_UNLOCKED, init, NULL);
 		if (ret) {
 			ret = ops_sanitize_err(sch, "init", ret);
@@ -5128,6 +5158,7 @@ static void scx_enable_workfn(struct kthread_work *work)
 			goto err_disable;
 		}
 		sch->exit_info->flags |= SCX_EFLAG_INITIALIZED;
+		pr_info("sched_ext: [2/6] ops.init() returned successfully\n");
 	}
 
 	for (i = SCX_OPI_CPU_HOTPLUG_BEGIN; i < SCX_OPI_CPU_HOTPLUG_END; i++)
@@ -5165,7 +5196,9 @@ static void scx_enable_workfn(struct kthread_work *work)
 	WRITE_ONCE(scx_watchdog_timeout, timeout);
 	WRITE_ONCE(scx_watchdog_timestamp, jiffies);
 	queue_delayed_work(system_unbound_wq, &scx_watchdog_work,
-			   READ_ONCE(scx_watchdog_timeout) / 2);
+			   scx_watchdog_timeout / 2);
+	pr_info("sched_ext: [3/6] watchdog armed (timeout=%lu ms)\n",
+		jiffies_to_msecs(timeout));
 
 	/*
 	 * Once __scx_enabled is set, %current can be switched to SCX anytime.
@@ -5191,6 +5224,7 @@ static void scx_enable_workfn(struct kthread_work *work)
 
 	WARN_ON_ONCE(scx_init_task_enabled);
 	scx_init_task_enabled = true;
+	pr_info("sched_ext: [4/6] initializing all existing tasks for SCX ...\n");
 
 	/*
 	 * Enable ops for every task. Fork is excluded by scx_fork_rwsem
@@ -5245,6 +5279,7 @@ static void scx_enable_workfn(struct kthread_work *work)
 	 */
 	WRITE_ONCE(scx_switching_all, !(ops->flags & SCX_OPS_SWITCH_PARTIAL));
 	static_branch_enable(&__scx_enabled);
+	pr_info("sched_ext: [5/6] scx_enabled=true, switching all tasks to SCX class ...\n");
 
 	/*
 	 * We're fully committed and can't fail. The task READY -> ENABLED
@@ -5283,6 +5318,7 @@ static void scx_enable_workfn(struct kthread_work *work)
 	if (!(ops->flags & SCX_OPS_SWITCH_PARTIAL))
 		static_branch_enable(&__scx_switched_all);
 
+	pr_info("sched_ext: [6/6] state -> SCX_ENABLED. Scheduler takeover COMPLETE!\n");
 	pr_info("sched_ext: BPF scheduler \"%s\" enabled%s\n",
 		sch->ops.name, scx_switched_all() ? "" : " (partial)");
 	kobject_uevent(&sch->kobj, KOBJ_ADD);
@@ -5484,6 +5520,192 @@ static int bpf_scx_reg(void *kdata, struct bpf_link *link)
 {
 	return scx_enable(kdata, link);
 }
+
+int scx_enable_rex(struct bpf_prog *base,
+		   struct rex_sched_ops_sym __user *usyms, u32 nr_syms,
+		   u64 ops_flags, u32 timeout_ms, u32 exit_dump_len,
+		   const char *user_name)
+{
+	struct sched_ext_ops *ops;
+	struct rex_sched_ops_sym *syms;
+	struct scx_sched *sch;
+	char name_buf[128];
+	u32 i;
+	int err;
+
+	pr_info("sched_ext_rex: === REX ENABLE START === nr_syms=%u\n", nr_syms);
+
+	if (nr_syms > 64)
+		return -EINVAL;
+
+	syms = kvmalloc_array(nr_syms, sizeof(*syms), GFP_KERNEL);
+	if (!syms)
+		return -ENOMEM;
+
+	if (copy_from_user(syms, usyms, nr_syms * sizeof(*syms))) {
+		err = -EFAULT;
+		goto free_syms;
+	}
+
+	ops = kzalloc(sizeof(*ops), GFP_KERNEL);
+	if (!ops) {
+		err = -ENOMEM;
+		goto free_syms;
+	}
+
+	for (i = 0; i < nr_syms; i++) {
+		void *fn;
+		long name_len;
+		bool matched;
+
+		name_len = strncpy_from_user(name_buf, syms[i].name,
+					     sizeof(name_buf));
+		if (name_len <= 0 || name_len >= sizeof(name_buf)) {
+			err = -EFAULT;
+			goto free_ops;
+		}
+
+		if (syms[i].offset >= (u64)base->mem.total_page << PAGE_SHIFT) {
+			err = -EINVAL;
+			goto free_ops;
+		}
+
+		fn = (void *)((u64)base->mem.mem + syms[i].offset);
+		matched = false;
+
+#define SCX_OP_MATCH(field) \
+	do { if (!strcmp(name_buf, #field)) { ops->field = fn; matched = true; } } while (0)
+
+		if (!matched) SCX_OP_MATCH(select_cpu);
+		if (!matched) SCX_OP_MATCH(enqueue);
+		if (!matched) SCX_OP_MATCH(dequeue);
+		if (!matched) SCX_OP_MATCH(dispatch);
+		if (!matched) SCX_OP_MATCH(tick);
+		if (!matched) SCX_OP_MATCH(runnable);
+		if (!matched) SCX_OP_MATCH(running);
+		if (!matched) SCX_OP_MATCH(stopping);
+		if (!matched) SCX_OP_MATCH(quiescent);
+		if (!matched) SCX_OP_MATCH(yield);
+		if (!matched) SCX_OP_MATCH(core_sched_before);
+		if (!matched) SCX_OP_MATCH(set_weight);
+		if (!matched) SCX_OP_MATCH(set_cpumask);
+		if (!matched) SCX_OP_MATCH(update_idle);
+		if (!matched) SCX_OP_MATCH(cpu_acquire);
+		if (!matched) SCX_OP_MATCH(cpu_release);
+		if (!matched) SCX_OP_MATCH(init_task);
+		if (!matched) SCX_OP_MATCH(exit_task);
+		if (!matched) SCX_OP_MATCH(enable);
+		if (!matched) SCX_OP_MATCH(disable);
+		if (!matched) SCX_OP_MATCH(dump);
+		if (!matched) SCX_OP_MATCH(dump_cpu);
+		if (!matched) SCX_OP_MATCH(dump_task);
+#ifdef CONFIG_EXT_GROUP_SCHED
+		if (!matched) SCX_OP_MATCH(cgroup_init);
+		if (!matched) SCX_OP_MATCH(cgroup_exit);
+		if (!matched) SCX_OP_MATCH(cgroup_prep_move);
+		if (!matched) SCX_OP_MATCH(cgroup_move);
+		if (!matched) SCX_OP_MATCH(cgroup_cancel_move);
+		if (!matched) SCX_OP_MATCH(cgroup_set_weight);
+		if (!matched) SCX_OP_MATCH(cgroup_set_bandwidth);
+		if (!matched) SCX_OP_MATCH(cgroup_set_idle);
+#endif
+		if (!matched) SCX_OP_MATCH(cpu_online);
+		if (!matched) SCX_OP_MATCH(cpu_offline);
+		if (!matched) SCX_OP_MATCH(init);
+		if (!matched) SCX_OP_MATCH(exit);
+
+#undef SCX_OP_MATCH
+
+		if (!matched) {
+			pr_err("sched_ext_rex: unknown callback \"%s\"\n",
+			       name_buf);
+			err = -EINVAL;
+			goto free_ops;
+		}
+		pr_info("sched_ext_rex: matched callback \"%s\" at offset 0x%llx\n",
+			name_buf, syms[i].offset);
+	}
+
+	ops->flags        = ops_flags;
+	ops->timeout_ms   = timeout_ms;
+	ops->exit_dump_len = exit_dump_len;
+
+	/*
+	 * Prefer the user-supplied scheduler name (from SchedExtOps::name in
+	 * the Rust program's .struct_ops). Fall back to the base program's
+	 * name when the caller didn't provide one (empty string) -- this
+	 * preserves the pre-fix behaviour for older loaders.
+	 */
+	if (user_name && user_name[0] != '\0')
+		strscpy(ops->name, user_name, sizeof(ops->name));
+	else
+		strscpy(ops->name, base->aux->name, sizeof(ops->name));
+	pr_info("sched_ext_rex: all %u callbacks matched, calling scx_enable(\"%s\")\n",
+		nr_syms, ops->name);
+
+	mutex_lock(&scx_rex_mutex);
+
+	err = scx_enable(ops, NULL);
+	if (err) {
+		pr_err("sched_ext_rex: scx_enable() FAILED err=%d\n", err);
+		mutex_unlock(&scx_rex_mutex);
+		goto free_ops;
+	}
+
+	/*
+	 * Hand the bpf_prog_get() reference taken in bpf_sched_ext_attach_rex()
+	 * over to the scx_sched. scx_disable_workfn() will release it for any
+	 * disable kind, so we don't depend on userspace detach running.
+	 */
+	rcu_read_lock();
+	sch = rcu_dereference(scx_root);
+	rcu_read_unlock();
+	if (sch)
+		sch->rex_base = base;
+	scx_rex_base_prog = base;
+	mutex_unlock(&scx_rex_mutex);
+
+	pr_info("sched_ext_rex: === REX ENABLE COMPLETE === scheduler is ACTIVE\n");
+	kvfree(syms);
+	kfree(ops);
+	return 0;
+
+free_ops:
+	kfree(ops);
+free_syms:
+	kvfree(syms);
+	return err;
+}
+EXPORT_SYMBOL_GPL(scx_enable_rex);
+
+int scx_disable_rex(void)
+{
+	struct scx_sched *sch;
+
+	pr_info("sched_ext_rex: === REX DISABLE START ===\n");
+
+	mutex_lock(&scx_rex_mutex);
+	if (!scx_rex_base_prog) {
+		/* Already torn down by another path (e.g. watchdog). */
+		mutex_unlock(&scx_rex_mutex);
+		pr_info("sched_ext_rex: === REX DISABLE: already disabled ===\n");
+		return 0;
+	}
+	rcu_read_lock();
+	sch = rcu_dereference(scx_root);
+	rcu_read_unlock();
+	mutex_unlock(&scx_rex_mutex);
+
+	if (sch) {
+		pr_info("sched_ext_rex: disabling scheduler, switching tasks back to CFS ...\n");
+		scx_disable(SCX_EXIT_UNREG);
+		kthread_flush_work(&sch->disable_work);
+	}
+
+	pr_info("sched_ext_rex: === REX DISABLE COMPLETE === back to default scheduler\n");
+	return 0;
+}
+EXPORT_SYMBOL_GPL(scx_disable_rex);
 
 static void bpf_scx_unreg(void *kdata, struct bpf_link *link)
 {

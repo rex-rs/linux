@@ -1793,6 +1793,18 @@ struct rex_saved_states{
 	struct bpf_link *link;
 };
 
+struct rex_mem {
+	void *mem;
+	u32 total_page;
+};
+
+struct rex_saved_states{
+	int cpu_id;
+	int loader_pid;
+	u64 unwinder_insn_off;
+	struct bpf_link *link;
+};
+
 struct bpf_prog {
 	u16			pages;		/* Number of allocated pages */
 	u16			jited:1,	/* Is our filter JIT'ed? */
