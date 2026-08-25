@@ -3285,6 +3285,10 @@ static int bpf_prog_load_rex(union bpf_attr *attr, bpfptr_t uattr)
 	if (err < 0)
 		goto free_prog_sec;
 
+	err = security_bpf_prog_load(prog, attr, NULL, uattr.is_kernel);
+	if (err)
+		goto free_prog_sec;
+
 	prog->no_bpf = 1;
 
 	/* This gets the refcnt */
@@ -3809,6 +3813,10 @@ static int bpf_prog_load_rex_base(union bpf_attr *attr, bpfptr_t uattr)
 	err = bpf_obj_name_cpy(prog->aux->name, attr->prog_name,
 			       sizeof(attr->prog_name));
 	if (err < 0)
+		goto free_prog_sec;
+
+	err = security_bpf_prog_load(prog, attr, NULL, uattr.is_kernel);
+	if (err)
 		goto free_prog_sec;
 
 	bpf_get_trace_printk_proto();
