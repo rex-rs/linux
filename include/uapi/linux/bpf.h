@@ -1647,7 +1647,7 @@ union bpf_attr {
 				__aligned_u64	text_syms;	/* ptr to text sym info entries */
 				__aligned_u64	nr_text_syms;	/* nr of text sym info entries */
 				__u32		rustfd;		/* file descriptor of Rust Program */
-				__u32		map_cnt;	/* length map reloc array */	
+				__u32		map_cnt;	/* length map reloc array */
 			};
 			struct {
 				__aligned_u64	prog_offset;	/* offset of prog in base */

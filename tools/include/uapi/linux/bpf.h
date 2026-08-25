@@ -1094,6 +1094,7 @@ enum bpf_prog_type {
 	BPF_PROG_TYPE_SK_LOOKUP,
 	BPF_PROG_TYPE_SYSCALL, /* a program that can execute syscalls */
 	BPF_PROG_TYPE_NETFILTER,
+	BPF_PROG_TYPE_REX_BASE,
 	__MAX_BPF_PROG_TYPE
 };
 
@@ -1619,6 +1620,23 @@ union bpf_attr {
 			__u32		attach_btf_obj_fd;
 		};
 		__u32		core_relo_cnt;	/* number of bpf_core_relo */
+		union {
+			struct {
+				__aligned_u64	map_offs;	/* offsets of map relocs */
+				__aligned_u64	dyn_relas;	/* ptr to dynamic rela info */
+				__aligned_u64	nr_dyn_relas;	/* nr of dyn rela entries */
+				__aligned_u64	dyn_syms;	/* ptr to dyn sym entries */
+				__aligned_u64	nr_dyn_syms;	/* nr of dyn sym entries */
+				__aligned_u64	text_syms;	/* ptr to text sym info entries */
+				__aligned_u64	nr_text_syms;	/* nr of text sym info entries */
+				__u32		rustfd;		/* file descriptor of Rust Program */
+				__u32		map_cnt;	/* length map reloc array */
+			};
+			struct {
+				__aligned_u64	prog_offset;	/* offset of prog in base */
+				__u32		base_prog_fd;	/* fd of the base prog */
+			};
+		};
 		__aligned_u64	fd_array;	/* array of FDs */
 		__aligned_u64	core_relos;
 		__u32		core_relo_rec_size; /* sizeof(struct bpf_core_relo) */
